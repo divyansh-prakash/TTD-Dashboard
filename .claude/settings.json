@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(pkill -f \"node index.js\")",
+      "Bash(curl -s \"http://localhost:3000/api/failure-queue/by-platform?dateFrom=2026-05-18&dateTo=2026-05-24\")"
+    ]
+  }
+}

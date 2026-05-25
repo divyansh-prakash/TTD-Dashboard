@@ -1,0 +1,2321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Failure Prevention — Silverpush CTV</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { overflow-x: hidden; }
+
+    :root {
+      --accent:        #2d9b6f;
+      --accent-light:  #d1fae5;
+      --accent-dim:    #1e7a55;
+      --sidebar-bg:    #1e293b;
+      --sidebar-text:  #94a3b8;
+      --sidebar-active:#ffffff;
+      --bg:            #f4f5f7;
+      --surface:       #ffffff;
+      --border:        #e2e8f0;
+      --text-primary:  #0f172a;
+      --text-secondary:#64748b;
+      --red:           #dc2626;
+      --red-light:     #fee2e2;
+      --red-dim:       #b91c1c;
+      --amber:         #d97706;
+      --amber-light:   #fef3c7;
+      --green:         #2d9b6f;
+      --green-light:   #d1fae5;
+      --mono:          'IBM Plex Mono', monospace;
+      --radius:        8px;
+      --shadow:        0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+      --shadow-md:     0 4px 12px rgba(0,0,0,.10);
+    }
+
+    body.dark {
+      --bg:           #0f172a;
+      --surface:      #1e293b;
+      --border:       #334155;
+      --text-primary: #f1f5f9;
+      --text-secondary:#94a3b8;
+      --accent-light: #064e3b;
+      --red-light:    #450a0a;
+      --amber-light:  #451a03;
+      --green-light:  #064e3b;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      display: flex;
+      min-height: 100vh;
+      max-width: 100vw;
+      overflow-x: hidden;
+      transition: background .2s, color .2s;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 240px;
+      min-height: 100vh;
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 100;
+    }
+    .sidebar-logo {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .logo-mark {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 700; color: #fff;
+    }
+    .logo-text { font-size: 15px; font-weight: 600; color: #fff; }
+    .logo-sub  { font-size: 11px; color: var(--sidebar-text); margin-top: 2px; }
+
+    .nav-section { padding: 12px 0; flex: 1; }
+    .nav-label {
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .08em; color: #475569;
+      padding: 0 16px 6px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 16px;
+      font-size: 13px; font-weight: 500; color: var(--sidebar-text);
+      cursor: pointer; border-radius: 0;
+      transition: background .15s, color .15s;
+      position: relative;
+    }
+    .nav-item:hover { background: rgba(255,255,255,.05); color: #fff; }
+    .nav-item.active { color: #fff; background: rgba(45,155,111,.15); }
+    .nav-item.active::before {
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+      width: 3px; background: var(--accent); border-radius: 0 3px 3px 0;
+    }
+    .nav-icon { font-size: 16px; opacity: .9; }
+    .nav-badge {
+      margin-left: auto;
+      background: var(--red);
+      color: #fff;
+      font-size: 10px; font-weight: 600;
+      padding: 1px 6px; border-radius: 10px;
+    }
+
+    .sidebar-footer {
+      padding: 16px;
+      border-top: 1px solid rgba(255,255,255,.08);
+    }
+    .health-score {
+      background: rgba(255,255,255,.05);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+    .health-label { font-size: 10px; color: var(--sidebar-text); text-transform: uppercase; letter-spacing: .06em; }
+    .health-value { font-size: 22px; font-weight: 700; color: var(--amber); font-family: var(--mono); margin-top: 2px; }
+    .health-sub   { font-size: 11px; color: var(--sidebar-text); margin-top: 1px; }
+    .health-bar   { height: 4px; background: rgba(255,255,255,.1); border-radius: 2px; margin-top: 8px; }
+    .health-fill  { height: 4px; background: var(--amber); border-radius: 2px; width: 63%; }
+
+    .dark-toggle {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px; color: var(--sidebar-text); cursor: pointer;
+    }
+    .toggle-pill {
+      width: 36px; height: 20px;
+      background: rgba(255,255,255,.12);
+      border-radius: 10px;
+      position: relative; cursor: pointer;
+      transition: background .2s;
+    }
+    .toggle-pill.on { background: var(--accent); }
+    .toggle-knob {
+      position: absolute; top: 2px; left: 2px;
+      width: 16px; height: 16px;
+      background: #fff; border-radius: 50%;
+      transition: left .2s;
+    }
+    .toggle-pill.on .toggle-knob { left: 18px; }
+
+    /* ── Main layout ── */
+    .main {
+      margin-left: 240px;
+      width: calc(100vw - 240px);
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Top bar ── */
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 56px;
+      position: sticky; top: 0; z-index: 50;
+    }
+    .topbar-title {
+      font-size: 14px; font-weight: 600; color: var(--text-primary);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .topbar-badge {
+      font-size: 11px; font-weight: 500;
+      background: var(--red-light); color: var(--red);
+      padding: 2px 8px; border-radius: 12px;
+    }
+    .topbar-spacer { flex: 1; }
+    .topbar-demand {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 12px; color: var(--text-secondary);
+    }
+    .demand-chip {
+      font-size: 11px; font-weight: 600;
+      background: #1e293b; color: #fff;
+      padding: 3px 8px; border-radius: 6px;
+    }
+    .topbar-time {
+      font-size: 11px; color: var(--text-secondary);
+      font-family: var(--mono);
+    }
+
+    /* ── Alert banner ── */
+    .alert-banner {
+      margin: 20px 28px 0;
+      background: var(--red-light);
+      border: 1px solid #fca5a5;
+      border-left: 4px solid var(--red);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    body.dark .alert-banner { border-color: #7f1d1d; border-left-color: var(--red); }
+    .alert-icon { font-size: 18px; margin-top: 1px; }
+    .alert-content { flex: 1; }
+    .alert-title { font-size: 13px; font-weight: 600; color: var(--red); margin-bottom: 2px; }
+    .alert-body  { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+    .alert-close { font-size: 16px; color: var(--text-secondary); cursor: pointer; margin-left: auto; }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      margin: 16px 28px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .filter-scope {
+      font-size: 11px; font-weight: 600; color: var(--text-secondary);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 5px 10px; border-radius: 6px;
+    }
+    .filter-select {
+      font-size: 12px; font-family: 'Inter', sans-serif;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 5px 10px; border-radius: 6px;
+      cursor: pointer;
+      outline: none;
+    }
+    .filter-select:hover { border-color: var(--accent); }
+    .filter-reset {
+      font-size: 12px; color: var(--text-secondary);
+      background: none; border: none; cursor: pointer;
+      padding: 5px 8px; border-radius: 6px;
+      transition: background .15s;
+    }
+    .filter-reset:hover { background: var(--border); }
+    .filter-spacer { flex: 1; }
+    .filter-refresh {
+      font-size: 12px; color: var(--accent);
+      background: var(--accent-light); border: none;
+      padding: 5px 12px; border-radius: 6px;
+      cursor: pointer; font-weight: 500;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    /* ── Content area ── */
+    .content { padding: 20px 28px 40px; }
+
+    /* ── KPI cards ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    .kpi-card.alert { border-top: 3px solid var(--red); }
+    .kpi-card.warn  { border-top: 3px solid var(--amber); }
+    .kpi-card.good  { border-top: 3px solid var(--green); }
+    .kpi-card.neutral { border-top: 3px solid var(--border); }
+
+    .kpi-label {
+      font-size: 11px; font-weight: 600; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: .06em;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .kpi-attention {
+      font-size: 9px; font-weight: 600;
+      background: var(--red-light); color: var(--red);
+      padding: 1px 6px; border-radius: 10px;
+      text-transform: uppercase;
+    }
+    .kpi-attention.warn {
+      background: var(--amber-light); color: var(--amber);
+    }
+    .kpi-value {
+      font-size: 28px; font-weight: 700; color: var(--text-primary);
+      font-family: var(--mono); margin: 8px 0 2px; line-height: 1;
+    }
+    .kpi-value.red    { color: var(--red); }
+    .kpi-value.amber  { color: var(--amber); }
+    .kpi-value.green  { color: var(--green); }
+    .kpi-change {
+      font-size: 11px; font-weight: 500; margin-top: 6px;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .kpi-change.up   { color: var(--red); }
+    .kpi-change.down { color: var(--green); }
+    .kpi-change.flat { color: var(--text-secondary); }
+    .kpi-sparkline { height: 36px; margin-top: 10px; }
+    .kpi-source {
+      font-size: 10px; color: var(--text-secondary);
+      font-family: var(--mono);
+      border-top: 1px solid var(--border);
+      padding-top: 8px; margin-top: 10px;
+    }
+
+    /* ── Section panels ── */
+    .section-title {
+      font-size: 13px; font-weight: 600; color: var(--text-primary);
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px;
+    }
+    .section-title small {
+      font-size: 11px; font-weight: 400; color: var(--text-secondary);
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+    .panel-title {
+      font-size: 13px; font-weight: 600; color: var(--text-primary);
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .panel-title-right {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .panel-tag {
+      font-size: 10px; font-weight: 600;
+      padding: 2px 7px; border-radius: 10px;
+      text-transform: uppercase;
+    }
+    .panel-tag.red    { background: var(--red-light);   color: var(--red); }
+    .panel-tag.amber  { background: var(--amber-light);  color: var(--amber); }
+    .panel-tag.green  { background: var(--green-light);  color: var(--green); }
+    .panel-tag.neutral{ background: var(--bg);           color: var(--text-secondary); border: 1px solid var(--border); }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .sixty-forty { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; }
+
+    /* ── Chart containers ── */
+    .chart-wrap { position: relative; }
+    .chart-wrap canvas { max-width: 100%; }
+
+    /* ── Platform table ── */
+    .platform-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .platform-table th {
+      text-align: left;
+      padding: 8px 10px;
+      font-size: 10px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .platform-table th:hover { color: var(--text-primary); }
+    .platform-table th .sort-arrow { opacity: .4; margin-left: 4px; }
+    .platform-table th.sorted .sort-arrow { opacity: 1; color: var(--accent); }
+    .platform-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .platform-table tr:last-child td { border-bottom: none; }
+    .platform-table tr:hover td { background: var(--bg); }
+    .platform-name { font-weight: 600; font-size: 12px; }
+    .platform-url  { font-size: 10px; color: var(--text-secondary); font-family: var(--mono); }
+
+    .rate-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .rate-bar {
+      flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;
+    }
+    .rate-fill { height: 6px; border-radius: 3px; }
+    .rate-fill.critical { background: var(--red); }
+    .rate-fill.high     { background: #f97316; }
+    .rate-fill.medium   { background: var(--amber); }
+    .rate-fill.low      { background: var(--green); }
+    .rate-pct {
+      font-size: 12px; font-weight: 600; font-family: var(--mono);
+      min-width: 38px; text-align: right;
+    }
+    .rate-pct.critical { color: var(--red); }
+    .rate-pct.high     { color: #f97316; }
+    .rate-pct.medium   { color: var(--amber); }
+    .rate-pct.low      { color: var(--green); }
+
+    .trend-chip {
+      font-size: 10px; font-weight: 600;
+      padding: 2px 6px; border-radius: 8px;
+      white-space: nowrap;
+    }
+    .trend-chip.up   { background: var(--red-light);   color: var(--red); }
+    .trend-chip.down { background: var(--green-light);  color: var(--green); }
+    .trend-chip.flat { background: var(--bg);           color: var(--text-secondary); border: 1px solid var(--border); }
+
+    .method-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+    .method-pill {
+      font-size: 9px; font-weight: 600;
+      padding: 2px 6px; border-radius: 6px;
+      background: var(--bg); border: 1px solid var(--border);
+      color: var(--text-secondary); font-family: var(--mono);
+    }
+
+    .detail-btn {
+      font-size: 11px; color: var(--accent);
+      background: none; border: none; cursor: pointer;
+      font-weight: 600; white-space: nowrap;
+    }
+    .detail-btn:hover { text-decoration: underline; }
+
+    /* ── Anomaly section ── */
+    .anomaly-list { display: flex; flex-direction: column; gap: 10px; }
+    .anomaly-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--red);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex; align-items: flex-start; gap: 12px;
+    }
+    .anomaly-card.warn { border-left-color: var(--amber); }
+    .anomaly-icon { font-size: 18px; }
+    .anomaly-body { flex: 1; }
+    .anomaly-title { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+    .anomaly-desc  { font-size: 11px; color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
+    .anomaly-meta  {
+      font-size: 10px; color: var(--text-secondary);
+      font-family: var(--mono); margin-top: 4px;
+    }
+    .anomaly-badge {
+      margin-left: auto;
+      font-size: 10px; font-weight: 700;
+      font-family: var(--mono);
+      padding: 3px 8px; border-radius: 8px;
+      white-space: nowrap;
+    }
+    .anomaly-badge.crit { background: var(--red-light); color: var(--red); }
+    .anomaly-badge.warn { background: var(--amber-light); color: var(--amber); }
+
+    /* ── Content offenders table ── */
+    .offender-table {
+      width: 100%; border-collapse: collapse; font-size: 12px;
+    }
+    .offender-table th {
+      text-align: left; padding: 7px 10px;
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--surface); z-index: 1;
+    }
+    .offender-table td {
+      padding: 8px 10px; border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .offender-table tr:last-child td { border-bottom: none; }
+    .offender-table tr:hover td { background: var(--bg); }
+    .content-id { font-family: var(--mono); font-size: 11px; font-weight: 500; }
+    .content-title { font-size: 11px; color: var(--text-secondary); }
+    .days-badge {
+      font-size: 10px; font-weight: 700; font-family: var(--mono);
+      padding: 2px 7px; border-radius: 8px;
+      background: var(--red-light); color: var(--red);
+    }
+    .days-badge.amber { background: var(--amber-light); color: var(--amber); }
+
+    /* ── Recommendations ── */
+    .reco-list { display: flex; flex-direction: column; gap: 12px; }
+    .reco-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex; align-items: flex-start; gap: 14px;
+    }
+    .reco-num {
+      width: 24px; height: 24px; min-width: 24px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: #fff;
+      background: var(--red);
+    }
+    .reco-num.amber { background: var(--amber); }
+    .reco-num.green { background: var(--green); }
+    .reco-body { flex: 1; }
+    .reco-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .reco-desc  { font-size: 12px; color: var(--text-secondary); margin-top: 3px; line-height: 1.5; }
+    .reco-action {
+      margin-top: 8px;
+      font-size: 11px; font-weight: 500;
+      background: var(--accent-light); color: var(--accent);
+      border: none; padding: 4px 10px; border-radius: 6px;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+    }
+    .reco-impact {
+      font-size: 10px; font-weight: 600;
+      padding: 3px 8px; border-radius: 8px;
+      white-space: nowrap; align-self: flex-start;
+    }
+    .reco-impact.high   { background: var(--red-light);   color: var(--red); }
+    .reco-impact.medium { background: var(--amber-light);  color: var(--amber); }
+    .reco-impact.low    { background: var(--green-light);  color: var(--green); }
+
+    /* ── Region comparison ── */
+    .region-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    }
+    .region-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      text-align: center;
+    }
+    .region-name { font-size: 12px; font-weight: 600; font-family: var(--mono); }
+    .region-rate {
+      font-size: 28px; font-weight: 700; font-family: var(--mono);
+      margin: 6px 0 2px; line-height: 1;
+    }
+    .region-rate.red    { color: var(--red); }
+    .region-rate.amber  { color: var(--amber); }
+    .region-rate.green  { color: var(--green); }
+    .region-sub { font-size: 11px; color: var(--text-secondary); }
+    .region-bar-wrap { margin-top: 10px; }
+    .region-bar { height: 6px; background: var(--border); border-radius: 3px; }
+    .region-fill { height: 6px; border-radius: 3px; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 200;
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 40px 20px;
+      opacity: 0; pointer-events: none;
+      transition: opacity .2s;
+      overflow-y: auto;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--surface);
+      border-radius: 12px;
+      width: 100%; max-width: 740px;
+      box-shadow: var(--shadow-md);
+      transform: translateY(-12px);
+      transition: transform .2s;
+    }
+    .modal-overlay.open .modal { transform: translateY(0); }
+    .modal-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 12px;
+    }
+    .modal-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+    .modal-sub   { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .modal-close {
+      font-size: 20px; color: var(--text-secondary);
+      background: none; border: none; cursor: pointer; line-height: 1;
+    }
+    .modal-body  { padding: 20px 24px; }
+    .modal-kpi-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+      margin-bottom: 20px;
+    }
+    .modal-kpi {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      text-align: center;
+    }
+    .modal-kpi-val  { font-size: 22px; font-weight: 700; font-family: var(--mono); }
+    .modal-kpi-val.red { color: var(--red); }
+    .modal-kpi-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .05em; margin-top: 4px; }
+    .insight-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .insight-title {
+      font-size: 12px; font-weight: 600; color: var(--text-primary);
+      margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+    }
+    .insight-body  { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+    .insight-body ul { margin: 6px 0 0 16px; }
+    .insight-body li { margin-bottom: 3px; }
+
+    /* ── Scope note ── */
+    .scope-note {
+      background: var(--accent-light);
+      border: 1px solid #a7f3d0;
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 12px; color: var(--text-secondary);
+      margin-bottom: 20px;
+      display: flex; align-items: flex-start; gap: 8px;
+    }
+    body.dark .scope-note { border-color: #065f46; }
+    .scope-icon { font-size: 14px; margin-top: 1px; }
+
+    /* ── Misc ── */
+    .spacer-16 { height: 16px; }
+    .spacer-20 { height: 20px; }
+
+    .loading-shimmer {
+      background: linear-gradient(90deg, var(--border) 25%, var(--bg) 50%, var(--border) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 4px;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    .empty-state {
+      text-align: center; padding: 40px 20px;
+      color: var(--text-secondary); font-size: 13px;
+    }
+
+    @media (max-width: 1100px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .sixty-forty, .two-col { grid-template-columns: 1fr; }
+      .region-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ── Match depth panel ── */
+    .depth-legend {
+      display: flex; align-items: center; gap: 14px;
+      font-size: 11px; color: var(--text-secondary);
+    }
+    .depth-legend-item { display: flex; align-items: center; gap: 5px; }
+    .depth-legend-dot {
+      width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+    }
+
+    .depth-table { width: 100%; border-collapse: collapse; }
+    .depth-row { border-bottom: 1px solid var(--border); }
+    .depth-row:last-child { border-bottom: none; }
+    .depth-row.overall-row { border-bottom: 2px solid var(--border); }
+
+    .depth-row td { padding: 7px 0; vertical-align: middle; }
+
+    .depth-platform {
+      width: 90px; min-width: 90px;
+      font-size: 12px; font-weight: 500;
+      color: var(--text-primary);
+      padding-right: 12px !important;
+      white-space: nowrap;
+    }
+    .overall-row .depth-platform {
+      font-size: 13px; font-weight: 700;
+    }
+
+    .depth-bar-cell { width: 100%; }
+    .depth-bar-track {
+      display: flex; height: 26px;
+      border-radius: 5px; overflow: hidden;
+      gap: 1px;
+    }
+    .overall-row .depth-bar-track { height: 34px; border-radius: 6px; }
+
+    .depth-seg {
+      display: flex; align-items: center; justify-content: center;
+      min-width: 0; overflow: hidden;
+      position: relative;
+    }
+    .depth-seg.deep     { background: #2d9b6f; }
+    .depth-seg.shallow  { background: #d97706; }
+    .depth-seg.unmatched{ background: #dc2626; }
+    .depth-seg.zero     { display: none; }
+
+    .depth-seg-pct {
+      font-size: 10px; font-weight: 700; color: #fff;
+      white-space: nowrap; padding: 0 5px;
+      pointer-events: none;
+    }
+
+    .depth-stats-cell {
+      width: 210px; min-width: 210px;
+      padding-left: 14px !important;
+    }
+    .depth-stats {
+      display: flex; flex-direction: column; gap: 2px;
+      font-size: 10px; font-family: var(--mono);
+    }
+    .depth-stat { display: flex; align-items: center; gap: 5px; }
+    .depth-stat-dot { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
+    .depth-stat-val { font-weight: 600; }
+    .depth-stat-val.deep     { color: #2d9b6f; }
+    .depth-stat-val.shallow  { color: #d97706; }
+    .depth-stat-val.unmatched{ color: #dc2626; }
+    .depth-stat-label { color: var(--text-secondary); }
+
+    .overall-row .depth-stats { gap: 3px; font-size: 11px; }
+
+    .depth-note {
+      font-size: 11px; color: var(--text-secondary);
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: flex-start; gap: 6px;
+      line-height: 1.5;
+    }
+
+    /* clickable segments */
+    .depth-seg.clickable { cursor: pointer; }
+    .depth-seg.clickable:hover { filter: brightness(0.82); }
+    .depth-seg.active-expand { outline: 2px solid rgba(255,255,255,.7); outline-offset: -2px; }
+
+    /* expand row */
+    .depth-expand-row td { padding: 0 !important; }
+    .depth-expand-inner {
+      border-top: 2px solid var(--border);
+      background: var(--bg);
+      padding: 12px 14px 14px;
+    }
+    .depth-expand-header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 10px;
+    }
+    .depth-expand-title {
+      font-size: 12px; font-weight: 600; color: var(--text-primary);
+      flex: 1;
+    }
+    .depth-expand-title span {
+      font-size: 10px; font-weight: 500; font-family: var(--mono);
+      padding: 2px 7px; border-radius: 8px; margin-left: 8px;
+    }
+    .depth-expand-title span.shallow  { background: var(--amber-light); color: var(--amber); }
+    .depth-expand-title span.unmatched{ background: var(--red-light);   color: var(--red);   }
+    .depth-expand-select {
+      font-size: 11px; font-family: 'Inter', sans-serif;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text-primary); padding: 3px 8px; border-radius: 6px;
+      cursor: pointer; outline: none;
+    }
+    .depth-expand-close {
+      font-size: 14px; line-height: 1; cursor: pointer;
+      background: none; border: none; color: var(--text-secondary);
+      padding: 2px 6px; border-radius: 4px;
+    }
+    .depth-expand-close:hover { background: var(--border); }
+
+    .url-scroll-wrap {
+      max-height: 240px; overflow-y: auto;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface);
+    }
+    .url-table {
+      width: 100%; border-collapse: collapse; font-size: 11px;
+    }
+    .url-table thead th {
+      position: sticky; top: 0; z-index: 1;
+      background: var(--surface);
+      text-align: left; padding: 7px 10px;
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .url-table tbody td {
+      padding: 6px 10px; border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .url-table tbody tr:last-child td { border-bottom: none; }
+    .url-table tbody tr:hover td { background: var(--bg); }
+    .url-rank { color: var(--text-secondary); font-family: var(--mono); width: 30px; }
+    .url-bundle { font-family: var(--mono); color: var(--text-primary); }
+    .url-requests { font-family: var(--mono); font-weight: 600; text-align: right; white-space: nowrap; }
+    .url-bar-cell { width: 80px; padding-right: 14px !important; }
+    .url-bar { height: 5px; border-radius: 3px; }
+
+    /* ── Proxy status bar ── */
+    .proxy-bar {
+      border-bottom: 1px solid var(--border);
+      padding: 7px 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--surface);
+    }
+    .proxy-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #94a3b8;
+      flex-shrink: 0;
+      transition: background .3s;
+    }
+    .proxy-dot.connected    { background: var(--green); box-shadow: 0 0 0 3px rgba(45,155,111,.2); }
+    .proxy-dot.disconnected { background: var(--red); }
+    .proxy-dot.checking     { background: var(--amber); animation: pulse .8s infinite; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+    .proxy-status-text { font-weight: 500; color: var(--text-primary); }
+    .proxy-check-btn {
+      font-size: 11px; background: none; border: 1px solid var(--border);
+      padding: 2px 8px; border-radius: 6px; cursor: pointer;
+      color: var(--text-secondary); font-family: 'Inter', sans-serif;
+    }
+    .proxy-check-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .proxy-instructions {
+      font-size: 11px; color: var(--text-secondary);
+      background: var(--red-light);
+      border: 1px solid #fca5a5;
+      border-radius: 6px;
+      padding: 3px 10px;
+      display: none;
+    }
+    .proxy-instructions.visible { display: block; }
+    .ai-analyze-btn {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      background: #ede9fe;
+      color: #7c3aed;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: background .15s;
+    }
+    .ai-analyze-btn:hover { background: #ddd6fe; }
+    .ai-analyze-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .ai-shimmer-block { display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
+    .ai-error {
+      background: var(--red-light);
+      border: 1px solid #fca5a5;
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--red);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════ SIDEBAR ═══════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">
+      <div class="logo-icon">S</div>
+      <div>
+        <div class="logo-text">Silverpush</div>
+        <div class="logo-sub">CTV Intelligence</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Dashboards</div>
+    <div class="nav-item" onclick="window.location='ctv_dashboard.html'">
+      <span class="nav-icon">📊</span> CTV Overview
+    </div>
+    <div class="nav-item active">
+      <span class="nav-icon">🛡️</span> Failure Prevention
+      <span class="nav-badge">3</span>
+    </div>
+    <div class="nav-label" style="margin-top:12px;">Data</div>
+    <div class="nav-item">
+      <span class="nav-icon">🎬</span> Content Pool
+    </div>
+    <div class="nav-item">
+      <span class="nav-icon">🏷️</span> Segment Listing
+    </div>
+    <div class="nav-item">
+      <span class="nav-icon">🔐</span> Segment Permission
+    </div>
+    <div class="nav-label" style="margin-top:12px;">Admin</div>
+    <div class="nav-item">
+      <span class="nav-icon">👥</span> User Management
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="health-score">
+      <div class="health-label">Ecosystem Health</div>
+      <div class="health-value">63%</div>
+      <div class="health-sub">Below target (85%) — needs attention</div>
+      <div class="health-bar"><div class="health-fill"></div></div>
+    </div>
+    <div class="dark-toggle" onclick="toggleDark()">
+      <span>Dark mode</span>
+      <div class="toggle-pill" id="darkPill"><div class="toggle-knob"></div></div>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════ MAIN ═══════════════════════════════════════ -->
+<main class="main">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-title">
+      🛡️ Failure Prevention Dashboard
+      <span class="topbar-badge">3 active alerts</span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-demand">
+      Demand partner: <span class="demand-chip">TTD</span>
+    </div>
+    <div class="topbar-time" id="liveTime"></div>
+  </div>
+
+  <!-- Proxy status bar -->
+  <div class="proxy-bar">
+    <div class="proxy-dot checking" id="proxyDot"></div>
+    <span class="proxy-status-text" id="proxyStatusText">Checking ChatGPT proxy…</span>
+    <button class="proxy-check-btn" onclick="checkProxy()">↻ Recheck</button>
+    <span class="proxy-instructions" id="proxyInstructions">
+      Run <code style="font-family:var(--mono);font-size:11px;">python3 chatgpt_proxy.py</code> in the terminal, then enable
+      <strong>Chrome → View → Developer → Allow JavaScript from Apple Events</strong>
+    </span>
+  </div>
+
+  <!-- Alert banner -->
+  <div class="alert-banner" id="alertBanner">
+    <div class="alert-icon">🚨</div>
+    <div class="alert-content">
+      <div class="alert-title">Failure rate spike detected on Tubi — May 19</div>
+      <div class="alert-body">
+        Tubi's unmatched rate jumped from <strong>18.4%</strong> to <strong>31.2%</strong> over 24 hours (+12.8 pp). No segments are being sent to TTD for these requests. Immediate review of Tubi bundle ID coverage recommended.
+      </div>
+    </div>
+    <div class="alert-close" onclick="document.getElementById('alertBanner').style.display='none'">✕</div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <span class="filter-scope">TTD scope</span>
+    <select class="filter-select" id="dateRange">
+      <option value="7d">Last 7 days</option>
+      <option value="14d">Last 14 days</option>
+      <option value="30d">Last 30 days</option>
+      <option value="today">Today</option>
+    </select>
+    <select class="filter-select" id="regionFilter">
+      <option value="all">All regions</option>
+      <option value="euc-1">euc-1</option>
+      <option value="use-1">use-1</option>
+      <option value="aps-1">aps-1</option>
+    </select>
+    <select class="filter-select" id="platformFilter">
+      <option value="all">All platforms</option>
+      <option value="tubi">Tubi</option>
+      <option value="vizio">Vizio</option>
+      <option value="lg">LG</option>
+      <option value="amazon">Amazon</option>
+      <option value="roku">Roku</option>
+      <option value="samsung">Samsung</option>
+      <option value="appletv">Apple TV</option>
+      <option value="joyn">Joyn</option>
+      <option value="rakuten">Rakuten</option>
+      <option value="unmapped">Unmapped</option>
+    </select>
+    <button class="filter-reset" onclick="resetFilters()">↺ Reset</button>
+    <div class="filter-spacer"></div>
+    <button class="filter-refresh">⟳ Refresh data</button>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- KPI cards -->
+    <div class="kpi-grid">
+
+      <div class="kpi-card alert">
+        <div class="kpi-label">
+          Total Unmatched (7d)
+          <span class="kpi-attention">Needs attention</span>
+        </div>
+        <div class="kpi-value red">412,847</div>
+        <div class="kpi-change up">↑ 8.3% vs previous 7 days</div>
+        <div class="kpi-sparkline" id="spark1"></div>
+        <div class="kpi-source">ctv_stats WHERE matchedby = ''</div>
+      </div>
+
+      <div class="kpi-card warn">
+        <div class="kpi-label">
+          Overall Failure Rate
+          <span class="kpi-attention warn">Warn</span>
+        </div>
+        <div class="kpi-value amber">14.5%</div>
+        <div class="kpi-change up">↑ 2.3 pp vs previous 7 days</div>
+        <div class="kpi-sparkline" id="spark2"></div>
+        <div class="kpi-source">SUM(success=0) / SUM(total)</div>
+      </div>
+
+      <div class="kpi-card good">
+        <div class="kpi-label">
+          Segments Served (7d)
+        </div>
+        <div class="kpi-value green">2,434,545</div>
+        <div class="kpi-change down">↓ 1.1% vs previous 7 days</div>
+        <div class="kpi-sparkline" id="spark3"></div>
+        <div class="kpi-source">ctv_stats WHERE matchedby != ''</div>
+      </div>
+
+      <div class="kpi-card alert">
+        <div class="kpi-label">
+          Platforms in Alert
+          <span class="kpi-attention">Critical</span>
+        </div>
+        <div class="kpi-value red">3</div>
+        <div class="kpi-change up">↑ 1 new since yesterday</div>
+        <div class="kpi-sparkline" id="spark4"></div>
+        <div class="kpi-source">failure rate &gt; 25%</div>
+      </div>
+
+    </div>
+
+    <!-- Scope note -->
+    <div class="scope-note">
+      <span class="scope-icon">ℹ️</span>
+      <span><strong>Match depth:</strong> <strong style="color:#2d9b6f;">Deep</strong> = matched by content_id (<code style="font-family:var(--mono);font-size:11px">matchedby</code> starts with C — CG, C_JOYN, C_IRIS). <strong style="color:#d97706;">Shallow</strong> = matched by genre/title only (G). <strong style="color:#dc2626;">Unmatched</strong> = nothing sent to TTD.</span>
+    </div>
+
+    <!-- Match depth panel -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">
+        Match Depth by Platform
+        <div class="panel-title-right">
+          <div class="depth-legend">
+            <div class="depth-legend-item"><div class="depth-legend-dot" style="background:#2d9b6f;"></div> Deep (content_id)</div>
+            <div class="depth-legend-item"><div class="depth-legend-dot" style="background:#d97706;"></div> Shallow (genre/title)</div>
+            <div class="depth-legend-item"><div class="depth-legend-dot" style="background:#dc2626;"></div> Unmatched</div>
+          </div>
+        </div>
+      </div>
+      <table class="depth-table" id="depthTable"></table>
+      <div class="depth-note">
+        <span>ℹ️</span>
+        <span>Only <strong>deep matches</strong> (content_id matched) carry full audience signal to TTD. Shallow matches send a segment but with lower precision. The deep match % is the true quality indicator of what TTD receives.</span>
+      </div>
+    </div>
+
+    <!-- Failure trend chart -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">
+        Failure Rate Trend — Last 7 Days
+        <div class="panel-title-right">
+          <span class="panel-tag amber">Degrading</span>
+          <span style="font-size:11px;color:var(--text-secondary);">Anomaly on May 18–19</span>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:200px;">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Platform table + Anomaly feed -->
+    <div class="sixty-forty" style="margin-bottom:16px;">
+
+      <!-- Platform failure table -->
+      <div class="panel">
+        <div class="panel-title">
+          Platform Failure Rates
+          <div class="panel-title-right">
+            <span class="panel-tag neutral">Sorted: failure rate ↓</span>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+        <table class="platform-table" id="platformTable">
+          <thead>
+            <tr>
+              <th onclick="sortTable('platform')">Platform <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('failureRate')" class="sorted">Failure Rate <span class="sort-arrow">↓</span></th>
+              <th onclick="sortTable('unmatched')">Unmatched <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('trend')">Trend <span class="sort-arrow">↕</span></th>
+              <th>Active Methods</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="platformTableBody"></tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- Anomaly feed -->
+      <div class="panel">
+        <div class="panel-title">
+          Anomaly Detection
+          <div class="panel-title-right">
+            <span class="panel-tag red" id="anomalyCountTag">3 active</span>
+            <button class="ai-analyze-btn" id="anomalyAiBtn" onclick="analyzeAnomalies()">✨ Analyze with Gemini</button>
+          </div>
+        </div>
+        <div class="anomaly-list" id="anomalyList">
+          <div class="anomaly-card">
+            <div class="anomaly-icon">🔴</div>
+            <div class="anomaly-body">
+              <div class="anomaly-title">Tubi — Failure rate spike</div>
+              <div class="anomaly-desc">Rate jumped from 18.4% → 31.2% over 24h (+12.8 pp). Likely cause: new bundle IDs not in matching criteria.</div>
+              <div class="anomaly-meta">Detected: 2026-05-19 06:14 UTC · euc-1, use-1</div>
+            </div>
+            <div class="anomaly-badge crit">+12.8pp</div>
+          </div>
+          <div class="anomaly-card">
+            <div class="anomaly-icon">🔴</div>
+            <div class="anomaly-body">
+              <div class="anomaly-title">Unmapped URLs — Sustained critical rate</div>
+              <div class="anomaly-desc">67.4% failure rate for 5+ days. 1,240 distinct bundle IDs with no platform mapping and no match.</div>
+              <div class="anomaly-meta">Ongoing since 2026-05-14 · all regions</div>
+            </div>
+            <div class="anomaly-badge crit">67.4%</div>
+          </div>
+          <div class="anomaly-card warn">
+            <div class="anomaly-icon">🟡</div>
+            <div class="anomaly-body">
+              <div class="anomaly-title">Vizio — euc-1 failure rate elevated</div>
+              <div class="anomaly-desc">euc-1 region showing 34.1% failure rate vs. 18.2% in use-1. C_JOYN not firing in this region for Vizio content.</div>
+              <div class="anomaly-meta">Detected: 2026-05-18 14:30 UTC · euc-1 only</div>
+            </div>
+            <div class="anomaly-badge warn">+15.9pp</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Failure by region -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">
+        Failure Rate by Region
+        <div class="panel-title-right">
+          <span class="panel-tag red">euc-1 highest</span>
+        </div>
+      </div>
+      <div class="region-grid">
+        <div class="region-card">
+          <div class="region-name">euc-1</div>
+          <div class="region-rate red">18.2%</div>
+          <div class="region-sub">51,204 unmatched · 281,320 total</div>
+          <div class="region-bar-wrap">
+            <div class="region-bar"><div class="region-fill" style="width:18.2%;background:var(--red);border-radius:3px;height:6px;"></div></div>
+          </div>
+        </div>
+        <div class="region-card">
+          <div class="region-name">use-1</div>
+          <div class="region-rate amber">12.4%</div>
+          <div class="region-sub">218,460 unmatched · 1,762,000 total</div>
+          <div class="region-bar-wrap">
+            <div class="region-bar"><div class="region-fill" style="width:12.4%;background:var(--amber);border-radius:3px;height:6px;"></div></div>
+          </div>
+        </div>
+        <div class="region-card">
+          <div class="region-name">aps-1</div>
+          <div class="region-rate amber">15.8%</div>
+          <div class="region-sub">143,183 unmatched · 906,220 total</div>
+          <div class="region-bar-wrap">
+            <div class="region-bar"><div class="region-fill" style="width:15.8%;background:var(--amber);border-radius:3px;height:6px;"></div></div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:16px;height:160px;">
+        <canvas id="regionChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Content offenders + Method gaps -->
+    <div class="two-col" style="margin-bottom:16px;">
+
+      <!-- Repeat offenders -->
+      <div class="panel">
+        <div class="panel-title">
+          Content Repeat Offenders
+          <div class="panel-title-right">
+            <span class="panel-tag red">100% failure rate</span>
+            <span style="font-size:11px;color:var(--text-secondary);">Show top:</span>
+            <select class="filter-select" id="offenderLimit" onchange="renderOffendersTable()" style="padding:3px 8px;font-size:11px;">
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </div>
+        <div style="overflow-x:auto; overflow-y:auto; max-height:260px;">
+        <table class="offender-table">
+          <thead>
+            <tr>
+              <th>Content ID</th>
+              <th>Title</th>
+              <th>Platform</th>
+              <th>Bundle ID</th>
+              <th>Failed Days</th>
+              <th>Requests</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="offendersTableBody"></tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- Matching method gap analysis -->
+      <div class="panel">
+        <div class="panel-title">
+          Matching Method Coverage
+          <div class="panel-title-right">
+            <span class="panel-tag neutral">Served requests only</span>
+          </div>
+        </div>
+        <div style="height:180px;margin-bottom:14px;">
+          <canvas id="methodChart"></canvas>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
+            <span><span style="color:#2d9b6f;font-weight:600;">●</span> CG</span>
+            <span style="font-family:var(--mono);">1,048,321 served · 43.0%</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
+            <span><span style="color:#3b82f6;font-weight:600;">●</span> G</span>
+            <span style="font-family:var(--mono);">823,400 served · 33.8%</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
+            <span><span style="color:#8b5cf6;font-weight:600;">●</span> C_JOYN</span>
+            <span style="font-family:var(--mono);">391,820 served · 16.1%</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;">
+            <span><span style="color:#f59e0b;font-weight:600;">●</span> C_IRIS</span>
+            <span style="font-family:var(--mono);">171,004 served · 7.0%</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Recommendations -->
+    <div class="panel">
+      <div class="panel-title">
+        Recommended Actions
+        <div class="panel-title-right">
+          <span class="panel-tag red" id="recoCountTag">4 high impact</span>
+          <button class="ai-analyze-btn" id="recoAiBtn" onclick="generateRecommendations()">✨ Generate with Gemini</button>
+        </div>
+      </div>
+      <div class="reco-list" id="recoList">
+
+        <div class="reco-card">
+          <div class="reco-num">1</div>
+          <div class="reco-body">
+            <div class="reco-title">Audit Tubi bundle IDs against matching criteria</div>
+            <div class="reco-desc">
+              Tubi's failure rate spiked 12.8 pp in 24 hours. The likely cause is new bundle IDs that are not covered by any current matching criteria (CG, G, C_JOYN, C_IRIS). Query <code style="font-family:var(--mono);font-size:11px">ctv_stats</code> for Tubi URLs where <code style="font-family:var(--mono);font-size:11px">matchedby = ''</code> and cross-reference against your criteria configuration.
+            </div>
+            <button class="reco-action">Run diagnosis query</button>
+          </div>
+          <span class="reco-impact high">High impact</span>
+        </div>
+
+        <div class="reco-card">
+          <div class="reco-num">2</div>
+          <div class="reco-body">
+            <div class="reco-title">Expand <code style="font-family:var(--mono);font-size:13px">platform_url_map</code> for unmapped URLs</div>
+            <div class="reco-desc">
+              1,240 distinct bundle IDs have no platform mapping and a 67.4% failure rate. While unmapped URLs can still be matched, in practice these are failing at nearly 2× the overall rate. Add them to <code style="font-family:var(--mono);font-size:11px">platform_url_map</code> and review whether matching criteria cover their content patterns.
+            </div>
+            <button class="reco-action">View unmapped URLs</button>
+          </div>
+          <span class="reco-impact high">High impact</span>
+        </div>
+
+        <div class="reco-card">
+          <div class="reco-num">3</div>
+          <div class="reco-body">
+            <div class="reco-title">Investigate C_JOYN coverage gap in euc-1 for Vizio</div>
+            <div class="reco-desc">
+              Vizio shows a 34.1% failure rate in euc-1 vs. 18.2% in use-1. C_JOYN is the likely missing method for this region/platform combination — it fires for Joyn content in euc-1 but not for Vizio content there. Check C_JOYN criteria scope and whether it should extend to Vizio bundle IDs in euc-1.
+            </div>
+            <button class="reco-action">Drill into euc-1 / Vizio</button>
+          </div>
+          <span class="reco-impact high">High impact</span>
+        </div>
+
+        <div class="reco-card">
+          <div class="reco-num" style="background:var(--amber);">4</div>
+          <div class="reco-body">
+            <div class="reco-title">Flag 5 content IDs with 100% failure rate for 3+ consecutive days</div>
+            <div class="reco-desc">
+              <code style="font-family:var(--mono);font-size:11px">ct_8f3a91c2</code>, <code style="font-family:var(--mono);font-size:11px">ct_2b7e4d01</code>, <code style="font-family:var(--mono);font-size:11px">ct_a4c62f88</code> and 2 others have never matched across their entire request history (3–9 days). Either the content metadata is insufficient for any matching criteria to fire, or the content type is not covered. Consider manual review or exclusion.
+            </div>
+            <button class="reco-action">Review content IDs</button>
+          </div>
+          <span class="reco-impact medium">Medium impact</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- ═══════════════════════════════════ PLATFORM MODAL ════════════════════════════ -->
+<div class="modal-overlay" id="platformModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalTitle">Platform Detail</div>
+        <div class="modal-sub" id="modalSub">Failure analysis</div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-kpi-row" id="modalKpis"></div>
+      <div id="modalInsights"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ AI RESEARCH MODAL ════════════════════ -->
+<div class="modal-overlay" id="aiModal">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">🤖 AI Bundle Research</div>
+        <div class="modal-sub" id="aiModalSub">Unmatched request analysis</div>
+      </div>
+      <button class="modal-close" onclick="closeAIModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="insight-card" style="margin-bottom:14px;">
+        <div style="font-size:12px;color:var(--text-secondary);display:grid;grid-template-columns:auto 1fr;gap:4px 12px;line-height:1.8;">
+          <span style="font-weight:600;">Content ID</span><span id="aiContentId" style="font-family:var(--mono);"></span>
+          <span style="font-weight:600;">Bundle ID</span><span id="aiBundleId" style="font-family:var(--mono);color:var(--text-primary);"></span>
+          <span style="font-weight:600;">Platform</span><span id="aiPlatform"></span>
+          <span style="font-weight:600;">Failed days</span><span id="aiDays" style="font-family:var(--mono);"></span>
+        </div>
+      </div>
+
+      <div id="aiInitialState">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;line-height:1.6;">
+          Gemini will analyze this bundle ID — what app it belongs to, why no matching criteria fired, and how to fix coverage.
+        </p>
+        <button onclick="runAIResearch()" style="background:var(--accent);color:#fff;border:none;padding:8px 18px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;">
+          ✨ Run Gemini Analysis
+        </button>
+      </div>
+
+      <div id="aiLoadingState" style="display:none;padding:20px 0;">
+        <div class="loading-shimmer" style="height:11px;border-radius:4px;margin-bottom:8px;"></div>
+        <div class="loading-shimmer" style="height:11px;border-radius:4px;margin-bottom:8px;width:85%;"></div>
+        <div class="loading-shimmer" style="height:11px;border-radius:4px;width:70%;"></div>
+        <p style="margin-top:12px;font-size:11px;color:var(--text-secondary);">Asking Gemini…</p>
+      </div>
+
+      <div id="aiResultState" style="display:none;">
+        <div id="aiResultBody" style="font-size:13px;line-height:1.75;color:var(--text-primary);"></div>
+        <button onclick="resetAIModal()" style="margin-top:14px;background:none;border:1px solid var(--border);color:var(--text-secondary);padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-family:Inter,sans-serif;">
+          Run again
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Live clock ────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('liveTime').textContent =
+    now.toUTCString().replace(' GMT', ' UTC');
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ── Dark mode ─────────────────────────────────────────────────────────────────
+function toggleDark() {
+  document.body.classList.toggle('dark');
+  document.getElementById('darkPill').classList.toggle('on');
+  updateChartTheme();
+}
+
+// ── Platform data ─────────────────────────────────────────────────────────────
+const platforms = [
+  { platform:'Unmapped',  failureRate:67.4, unmatched:83200,  total:123440,  trend:'up',   trendVal:'+4.1pp', methods:['—'],                         detail:'unmapped' },
+  { platform:'Tubi',      failureRate:31.2, unmatched:97340,  total:312000,  trend:'up',   trendVal:'+12.8pp',methods:['CG'],                         detail:'tubi'    },
+  { platform:'Vizio',     failureRate:24.7, unmatched:52100,  total:211000,  trend:'up',   trendVal:'+3.2pp', methods:['CG','G'],                     detail:'vizio'   },
+  { platform:'Joyn',      failureRate:22.1, unmatched:18400,  total:83200,   trend:'flat', trendVal:'±0.1pp', methods:['C_JOYN','CG'],                detail:'joyn'    },
+  { platform:'Rakuten',   failureRate:19.4, unmatched:24300,  total:125000,  trend:'down', trendVal:'-1.2pp', methods:['CG','G','C_IRIS'],            detail:'rakuten' },
+  { platform:'LG',        failureRate:18.9, unmatched:41200,  total:218000,  trend:'down', trendVal:'-0.8pp', methods:['CG','G'],                     detail:'lg'      },
+  { platform:'Amazon',    failureRate:14.2, unmatched:38100,  total:268000,  trend:'flat', trendVal:'+0.3pp', methods:['CG','G','C_IRIS'],            detail:'amazon'  },
+  { platform:'Roku',      failureRate:8.3,  unmatched:31200,  total:375900,  trend:'down', trendVal:'-1.1pp', methods:['CG','G','C_IRIS','C_JOYN'],   detail:'roku'    },
+  { platform:'Samsung',   failureRate:6.1,  unmatched:18400,  total:301600,  trend:'down', trendVal:'-0.5pp', methods:['CG','G','C_IRIS','C_JOYN'],   detail:'samsung' },
+  { platform:'Apple TV',  failureRate:5.4,  unmatched:8607,   total:159400,  trend:'down', trendVal:'-0.3pp', methods:['CG','G','C_IRIS'],            detail:'appletv' },
+];
+
+function rateClass(r) {
+  if (r >= 30) return 'critical';
+  if (r >= 20) return 'high';
+  if (r >= 10) return 'medium';
+  return 'low';
+}
+
+// ── Match depth data ──────────────────────────────────────────────────────────
+// deep   = matchedby starts with C (CG, C_JOYN, C_IRIS) — content_id matched
+// shallow= matchedby = G — genre/title only
+// unmatched = matchedby = ''
+// All three sum to 100% of total requests.
+const depthData = [
+  { platform:'Roku',     total:375900,  deep:68, shallow:24, unmatched: 8  },
+  { platform:'Samsung',  total:301600,  deep:65, shallow:29, unmatched: 6  },
+  { platform:'Apple TV', total:159400,  deep:60, shallow:35, unmatched: 5  },
+  { platform:'Amazon',   total:268000,  deep:54, shallow:32, unmatched:14  },
+  { platform:'LG',       total:218000,  deep:48, shallow:33, unmatched:19  },
+  { platform:'Joyn',     total:83200,   deep:45, shallow:33, unmatched:22  },
+  { platform:'Rakuten',  total:125000,  deep:42, shallow:39, unmatched:19  },
+  { platform:'Vizio',    total:211000,  deep:36, shallow:39, unmatched:25  },
+  { platform:'Tubi',     total:312000,  deep:28, shallow:41, unmatched:31  },
+  { platform:'Unmapped', total:123440,  deep:12, shallow:21, unmatched:67  },
+];
+
+// Compute weighted overall
+(function() {
+  const totals = depthData.reduce((acc, p) => {
+    acc.deep      += p.total * p.deep      / 100;
+    acc.shallow   += p.total * p.shallow   / 100;
+    acc.unmatched += p.total * p.unmatched / 100;
+    acc.total     += p.total;
+    return acc;
+  }, { deep: 0, shallow: 0, unmatched: 0, total: 0 });
+  depthData._overall = {
+    platform: 'Overall',
+    deep:      Math.round(totals.deep      / totals.total * 10) / 10,
+    shallow:   Math.round(totals.shallow   / totals.total * 10) / 10,
+    unmatched: Math.round(totals.unmatched / totals.total * 10) / 10,
+  };
+})();
+
+// ── URL data generator ────────────────────────────────────────────────────────
+const platformBundleRoots = {
+  'Roku':     ['com.roku.streamingplayer','com.roku.channel.live','com.roku.newschannel','com.roku.sports.live','com.roku.movies','com.roku.kids','com.roku.documentaries','com.roku.reality','com.roku.drama'],
+  'Samsung':  ['com.samsung.tv.smartview','com.samsung.smarthub.app','com.samsung.tv.news','com.samsung.tv.sports','samsung.vd.apps.movies','samsung.vd.apps.kids','com.samsung.tv.lifestyle'],
+  'Apple TV': ['com.apple.tv.appletv','tv.apple.atv.channel','com.apple.appletv.movies','com.apple.appletv.sports','com.apple.appletv.news','com.apple.kids.content'],
+  'Amazon':   ['com.amazon.amazonvideo.edge','com.amazon.firetv.sports','com.amazon.firetv.news','com.amazon.imdb.tv','com.amazon.firetv.kids','com.amazon.prime.video.live'],
+  'LG':       ['com.lge.lgsmarthometv','com.lgsi.smartworld.tv','com.lge.app.lgchannels','com.lge.tv.sports','com.lge.tv.movies','com.lge.tv.news.live'],
+  'Joyn':     ['de.joyn.joynplus','de.joyn.tvnow','de.joyn.live.sports','de.joyn.news.live','de.joyn.entertainment','de.joyn.kids'],
+  'Rakuten':  ['com.rakuten.tv.android','com.rakuten.viki.android','com.rakuten.tv.movies','com.rakuten.tv.anime','com.rakuten.tv.kids','com.rakuten.tv.sports'],
+  'Vizio':    ['com.viziotvsidekick.sctv','com.vizio.watchfree.live','com.viziotvsidekick.sports','com.viziotvsidekick.news','com.vizio.watchfree.movies','com.vizio.smartcast.live'],
+  'Tubi':     ['com.tubitv.tubi','com.tubitv.tubi.news','com.tubitv.tubi.sports','com.tubitv.tubi.live','com.tubitv.tubi.movies','com.tubitv.tubi.kids','com.tubitv.tubi.latino'],
+  'Unmapped': ['tv.pluto.android','com.peacock.peacocktv','com.philo.android.tv','com.frndlytv.android','com.bloomberg.android.tv','com.accuweather.android.tv','air.com.unknown.news.ctv','1091249104.ctv.unknown','com.distrotv.android','com.plex.live.tv','com.xumo.play','com.stirr.app'],
+};
+
+function generateUrlList(platform, type, maxCount) {
+  const roots = platformBundleRoots[platform] || [`com.${platform.toLowerCase().replace(/\s/g,'')}.app`];
+  const baseReqs = type === 'unmatched'
+    ? [24310,18920,15440,13200,10870,9340,8120,7430,6810,5990,5340,4870,4410,3980,3540,3120,2840,2600,2380,2140,1920,1740,1580,1430,1290,1160,1050,950,860,780,710,640,580,530,480,440,400,370,340,310,285,260,238,218,200,184,169,155,143,132]
+    : [31200,28440,24110,21600,19340,17120,15430,13870,12490,11230,10110,9100,8200,7390,6660,6000,5410,4880,4400,3970,3580,3230,2910,2630,2370,2140,1930,1740,1570,1420,1280,1155,1042,940,848,765,690,622,561,506,456,411,371,334,301,271,244,220,198,178];
+  const result = [];
+  for (let i = 0; i < maxCount; i++) {
+    const root = roots[i % roots.length];
+    const suffix = i < roots.length ? '' : `.s${Math.ceil((i - roots.length + 1) / roots.length)}`;
+    result.push({ url: root + suffix, requests: (baseReqs[i] || Math.max(10, Math.round(120 * Math.pow(0.93, i)))) });
+  }
+  return result;
+}
+
+// ── Depth table expand state ──────────────────────────────────────────────────
+let activeExpand = null; // { platform, type }
+
+function segExpandId(platform) {
+  return 'depth-expand-' + platform.replace(/\s/g, '-');
+}
+
+function toggleDepthExpand(platform, type) {
+  // Collapse if clicking the same segment
+  if (activeExpand && activeExpand.platform === platform && activeExpand.type === type) {
+    collapseDepthExpand();
+    return;
+  }
+  collapseDepthExpand();
+  activeExpand = { platform, type };
+
+  // Mark segment as active
+  document.querySelectorAll('.depth-seg.active-expand').forEach(el => el.classList.remove('active-expand'));
+  const segEl = document.querySelector(`[data-expand="${platform}-${type}"]`);
+  if (segEl) segEl.classList.add('active-expand');
+
+  const row = document.getElementById(segExpandId(platform));
+  if (!row) return;
+  row.style.display = '';
+  renderUrlTable(platform, type, 10);
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function collapseDepthExpand() {
+  if (!activeExpand) return;
+  const row = document.getElementById(segExpandId(activeExpand.platform));
+  if (row) row.style.display = 'none';
+  document.querySelectorAll('.depth-seg.active-expand').forEach(el => el.classList.remove('active-expand'));
+  activeExpand = null;
+}
+
+function renderUrlTable(platform, type, limit) {
+  const row = document.getElementById(segExpandId(platform));
+  if (!row) return;
+  const inner = row.querySelector('.depth-expand-inner');
+  const urls  = generateUrlList(platform, type, parseInt(limit));
+  const maxReq = urls[0]?.requests || 1;
+  const color  = type === 'shallow' ? '#d97706' : '#dc2626';
+  const label  = type === 'shallow' ? 'Shallow match' : 'Unmatched';
+
+  inner.innerHTML = `
+    <div class="depth-expand-header">
+      <div class="depth-expand-title">
+        Top URLs — ${label} on ${platform}
+        <span class="${type}">${type === 'shallow' ? 'matchedby = G' : "matchedby = ''"}</span>
+      </div>
+      <select class="depth-expand-select" onchange="renderUrlTable('${platform}','${type}',this.value)">
+        ${[10,25,50,100].map(n => `<option value="${n}" ${n==limit?'selected':''}>${n}</option>`).join('')}
+      </select>
+      <button class="depth-expand-close" onclick="collapseDepthExpand()">✕</button>
+    </div>
+    <div class="url-scroll-wrap">
+      <table class="url-table">
+        <thead>
+          <tr>
+            <th class="url-rank">#</th>
+            <th>Bundle / URL</th>
+            <th style="text-align:right;">Requests</th>
+            <th class="url-bar-cell">Share</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${urls.map((u, i) => `
+            <tr>
+              <td class="url-rank">${i + 1}</td>
+              <td class="url-bundle">${u.url}</td>
+              <td class="url-requests">${u.requests.toLocaleString()}</td>
+              <td class="url-bar-cell">
+                <div class="url-bar" style="width:${Math.round(u.requests/maxReq*100)}%;background:${color};opacity:.7;"></div>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+// ── Depth table render ────────────────────────────────────────────────────────
+function renderDepthTable() {
+  const table   = document.getElementById('depthTable');
+  const overall = depthData._overall;
+
+  function segPct(pct, cls, platform) {
+    if (pct === 0) return '';
+    const label     = pct >= 9 ? `<span class="depth-seg-pct">${pct}%</span>` : '';
+    const clickable = platform && (cls === 'shallow' || cls === 'unmatched');
+    const extra     = clickable
+      ? `clickable" data-expand="${platform}-${cls}" onclick="toggleDepthExpand('${platform}','${cls}')" title="Click to see top URLs`
+      : '';
+    return `<div class="depth-seg ${cls} ${clickable ? extra : ''}" style="width:${pct}%">${label}</div>`;
+  }
+
+  function statsHtml(d) {
+    return `<div class="depth-stats">
+      <div class="depth-stat"><div class="depth-stat-dot" style="background:#2d9b6f;"></div>
+        <span class="depth-stat-val deep">${d.deep}%</span><span class="depth-stat-label">deep</span></div>
+      <div class="depth-stat"><div class="depth-stat-dot" style="background:#d97706;"></div>
+        <span class="depth-stat-val shallow">${d.shallow}%</span><span class="depth-stat-label">shallow</span></div>
+      <div class="depth-stat"><div class="depth-stat-dot" style="background:#dc2626;"></div>
+        <span class="depth-stat-val unmatched">${d.unmatched}%</span><span class="depth-stat-label">unmatched</span></div>
+    </div>`;
+  }
+
+  function rowHtml(d, isOverall) {
+    const trCls = isOverall ? 'depth-row overall-row' : 'depth-row';
+    const p     = isOverall ? null : d.platform;
+    const main  = `<tr class="${trCls}">
+      <td class="depth-platform">${d.platform}</td>
+      <td class="depth-bar-cell">
+        <div class="depth-bar-track">
+          ${segPct(d.deep,      'deep',      p)}
+          ${segPct(d.shallow,   'shallow',   p)}
+          ${segPct(d.unmatched, 'unmatched', p)}
+        </div>
+      </td>
+      <td class="depth-stats-cell">${statsHtml(d)}</td>
+    </tr>`;
+    if (isOverall) return main;
+    const expandRow = `<tr id="${segExpandId(d.platform)}" class="depth-expand-row" style="display:none;">
+      <td colspan="3"><div class="depth-expand-inner"></div></td>
+    </tr>`;
+    return main + expandRow;
+  }
+
+  table.innerHTML =
+    rowHtml(overall, true) +
+    depthData.map(d => rowHtml(d, false)).join('');
+}
+
+renderDepthTable();
+
+function renderPlatformTable() {
+  const tbody = document.getElementById('platformTableBody');
+  tbody.innerHTML = platforms.map(p => `
+    <tr>
+      <td>
+        <div class="platform-name">${p.platform}</div>
+      </td>
+      <td>
+        <div class="rate-bar-wrap">
+          <div class="rate-bar">
+            <div class="rate-fill ${rateClass(p.failureRate)}" style="width:${Math.min(p.failureRate,100)}%"></div>
+          </div>
+          <span class="rate-pct ${rateClass(p.failureRate)}">${p.failureRate}%</span>
+        </div>
+      </td>
+      <td style="font-family:var(--mono);font-size:11px;">${p.unmatched.toLocaleString()}</td>
+      <td>
+        <span class="trend-chip ${p.trend === 'up' ? 'up' : p.trend === 'down' ? 'down' : 'flat'}">
+          ${p.trend === 'up' ? '↑' : p.trend === 'down' ? '↓' : '→'} ${p.trendVal}
+        </span>
+      </td>
+      <td>
+        <div class="method-pills">
+          ${p.methods.map(m => `<span class="method-pill">${m}</span>`).join('')}
+        </div>
+      </td>
+      <td><button class="detail-btn" onclick="openModal('${p.detail}')">Details →</button></td>
+    </tr>
+  `).join('');
+}
+renderPlatformTable();
+
+// ── Sorting ───────────────────────────────────────────────────────────────────
+let sortCol = 'failureRate', sortDir = -1;
+function sortTable(col) {
+  if (sortCol === col) sortDir *= -1;
+  else { sortCol = col; sortDir = -1; }
+  platforms.sort((a,b) => sortDir * (a[col] > b[col] ? 1 : a[col] < b[col] ? -1 : 0));
+  renderPlatformTable();
+}
+
+// ── Reset filters ─────────────────────────────────────────────────────────────
+function resetFilters() {
+  document.getElementById('dateRange').value = '7d';
+  document.getElementById('regionFilter').value = 'all';
+  document.getElementById('platformFilter').value = 'all';
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+const days   = ['May 13','May 14','May 15','May 16','May 17','May 18','May 19'];
+const fRate  = [12.1, 11.8, 12.4, 12.0, 11.9, 13.7, 14.5];
+const total  = [340000, 352000, 345000, 360000, 358000, 370000, 381000];
+const served = [299000, 309000, 302000, 316000, 315000, 319000, 326000];
+const failed = [41000,  43000,  43000,  44000,  43000,  51000,  55000];
+
+function getColors() {
+  return {
+    red:    '#dc2626',
+    amber:  '#d97706',
+    green:  '#2d9b6f',
+    border: getComputedStyle(document.body).getPropertyValue('--border').trim() || '#e2e8f0',
+    text:   getComputedStyle(document.body).getPropertyValue('--text-secondary').trim() || '#64748b',
+  };
+}
+
+// Sparklines — pure SVG, no Chart.js instance
+function sparkline(id, data, color) {
+  const el = document.getElementById(id);
+  const W = 200, H = 36, pad = 2;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+  const xs = data.map((_, i) => (i / (data.length - 1)) * W);
+  const ys = data.map(v => H - pad - ((v - min) / range) * (H - pad * 2));
+  const pts = xs.map((x, i) => `${x},${ys[i]}`).join(' ');
+  const area = `0,${H} ${pts} ${W},${H}`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" width="100%" height="${H}" style="display:block;">
+    <polygon points="${area}" fill="${color}" fill-opacity="0.1"/>
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+sparkline('spark1', failed, '#dc2626');
+sparkline('spark2', fRate,  '#d97706');
+sparkline('spark3', served, '#2d9b6f');
+sparkline('spark4', [1,1,2,2,2,2,3], '#dc2626');
+
+// Trend chart
+const trendCtx = document.getElementById('trendChart').getContext('2d');
+const trendChart = new Chart(trendCtx, {
+  type: 'line',
+  data: {
+    labels: days,
+    datasets: [
+      {
+        label: 'Failure Rate %',
+        data: fRate,
+        borderColor: '#dc2626',
+        backgroundColor: 'rgba(220,38,38,.08)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.35,
+        pointBackgroundColor: fRate.map((v,i) => i === 5 || i === 6 ? '#dc2626' : '#dc2626'),
+        pointRadius: fRate.map((v,i) => i === 5 || i === 6 ? 5 : 3),
+        yAxisID: 'y'
+      },
+      {
+        label: 'Unmatched (k)',
+        data: failed.map(v => v/1000),
+        borderColor: '#f97316',
+        backgroundColor: 'rgba(249,115,22,.06)',
+        borderWidth: 1.5,
+        fill: false,
+        tension: 0.35,
+        pointRadius: 2,
+        yAxisID: 'y2',
+        borderDash: [4,3]
+      }
+    ]
+  },
+  options: {
+    animation: { duration: 0 },
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        position: 'top',
+        labels: { font: { family: 'Inter', size: 11 }, color: '#64748b', boxWidth: 16, padding: 16 }
+      },
+      tooltip: {
+        backgroundColor: '#1e293b',
+        titleColor: '#f1f5f9',
+        bodyColor: '#94a3b8',
+        borderColor: '#334155',
+        borderWidth: 1,
+        padding: 10,
+        callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(ctx.datasetIndex === 0 ? 1 : 1)}${ctx.datasetIndex === 0 ? '%' : 'k'}`
+        }
+      },
+      annotation: { annotations: {} }
+    },
+    scales: {
+      x: {
+        grid: { color: 'rgba(0,0,0,.04)' },
+        ticks: { font: { family: 'Inter', size: 11 }, color: '#64748b' }
+      },
+      y: {
+        position: 'left',
+        title: { display: true, text: 'Failure Rate %', font: { size: 10 }, color: '#94a3b8' },
+        ticks: { font: { family: 'IBM Plex Mono', size: 10 }, color: '#64748b', callback: v => v + '%' },
+        grid: { color: 'rgba(0,0,0,.04)' }
+      },
+      y2: {
+        position: 'right',
+        title: { display: true, text: 'Unmatched (k)', font: { size: 10 }, color: '#94a3b8' },
+        ticks: { font: { family: 'IBM Plex Mono', size: 10 }, color: '#64748b', callback: v => v + 'k' },
+        grid: { display: false }
+      }
+    }
+  }
+});
+
+// Region chart
+const regionCtx = document.getElementById('regionChart').getContext('2d');
+new Chart(regionCtx, {
+  type: 'bar',
+  data: {
+    labels: ['euc-1','use-1','aps-1'],
+    datasets: [
+      {
+        label: 'Failure Rate %',
+        data: [18.2, 12.4, 15.8],
+        backgroundColor: ['rgba(220,38,38,.7)', 'rgba(217,119,6,.7)', 'rgba(217,119,6,.7)'],
+        borderRadius: 4,
+        yAxisID: 'y'
+      },
+      {
+        label: 'Unmatched (k)',
+        data: [51.2, 218.5, 143.2],
+        backgroundColor: ['rgba(220,38,38,.2)', 'rgba(217,119,6,.2)', 'rgba(217,119,6,.2)'],
+        borderRadius: 4,
+        yAxisID: 'y2'
+      }
+    ]
+  },
+  options: {
+    animation: { duration: 0 },
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top', labels: { font: { family: 'Inter', size: 11 }, color: '#64748b', boxWidth: 14 } },
+      tooltip: {
+        backgroundColor: '#1e293b', titleColor: '#f1f5f9', bodyColor: '#94a3b8',
+        callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}${ctx.datasetIndex === 0 ? '%' : 'k'}`
+        }
+      }
+    },
+    scales: {
+      x: { ticks: { font: { family: 'IBM Plex Mono', size: 11 }, color: '#64748b' }, grid: { display: false } },
+      y: {
+        position: 'left',
+        ticks: { font: { size: 10 }, color: '#64748b', callback: v => v + '%' },
+        grid: { color: 'rgba(0,0,0,.04)' }
+      },
+      y2: {
+        position: 'right',
+        ticks: { font: { size: 10 }, color: '#64748b', callback: v => v + 'k' },
+        grid: { display: false }
+      }
+    }
+  }
+});
+
+// Method chart
+const methodCtx = document.getElementById('methodChart').getContext('2d');
+new Chart(methodCtx, {
+  type: 'doughnut',
+  data: {
+    labels: ['CG', 'G', 'C_JOYN', 'C_IRIS'],
+    datasets: [{
+      data: [43.0, 33.8, 16.1, 7.0],
+      backgroundColor: ['#2d9b6f', '#3b82f6', '#8b5cf6', '#f59e0b'],
+      borderWidth: 2,
+      borderColor: '#ffffff',
+      hoverOffset: 4
+    }]
+  },
+  options: {
+    animation: { duration: 0 },
+    responsive: true, maintainAspectRatio: false, cutout: '62%',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#1e293b', titleColor: '#f1f5f9', bodyColor: '#94a3b8',
+        callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}%` }
+      }
+    }
+  }
+});
+
+function updateChartTheme() {
+  // Charts auto-use CSS vars indirectly; a full theme update would need chart.update()
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+const modalData = {
+  tubi: {
+    title: 'Tubi', sub: 'Failure analysis · Last 7 days',
+    kpis: [
+      { label:'Total Requests', val:'312,000', cls:'' },
+      { label:'Segments Served', val:'214,660', cls:'' },
+      { label:'Unmatched', val:'97,340', cls:'red' },
+      { label:'Failure Rate', val:'31.2%', cls:'red' },
+    ],
+    insights: `
+      <div class="insight-card">
+        <div class="insight-title">🔴 Unmatched Volume</div>
+        <div class="insight-body">
+          97,340 requests had <code style="font-family:var(--mono);font-size:11px">matchedby = ''</code> — <strong>nothing was sent to TTD</strong> for these requests. Failure rate spiked from 18.4% to 31.2% over 24 hours on May 19.
+          <ul>
+            <li>Run: <code style="font-family:var(--mono);font-size:11px">SELECT DISTINCT url FROM ctv_stats WHERE url IN (SELECT url FROM platform_url_map WHERE platform='Tubi') AND matchedby='' AND date >= today()-1</code></li>
+            <li>Compare new bundle IDs to matching criteria coverage</li>
+            <li>Check if Tubi pushed a content update or new channel IDs</li>
+          </ul>
+        </div>
+      </div>
+      <div class="insight-card">
+        <div class="insight-title">📊 Matching Method Breakdown</div>
+        <div class="insight-body">
+          Only <strong>CG</strong> is actively firing for Tubi. G, C_JOYN, and C_IRIS have not produced matches. CG coverage is insufficient for the new content volume. The matching method does not affect delivery quality — all CG-matched requests are served to TTD normally.
+        </div>
+      </div>
+      <div class="insight-card">
+        <div class="insight-title">🌍 Region Split</div>
+        <div class="insight-body">
+          euc-1: 38.1% failure rate &nbsp;|&nbsp; use-1: 29.4% &nbsp;|&nbsp; aps-1: 27.8%
+          <br>euc-1 is worst — C_JOYN does not appear to cover Tubi in this region.
+        </div>
+      </div>
+      <div class="insight-card">
+        <div class="insight-title">ℹ️ Brand Safety Note</div>
+        <div class="insight-body">
+          <code style="font-family:var(--mono);font-size:11px">isbrandsafe</code> is a content attribute only. Brand-unsafe Tubi content is not blocked from delivery — it fails only because <code style="font-family:var(--mono);font-size:11px">matchedby = ''</code>.
+        </div>
+      </div>
+    `
+  },
+  unmapped: {
+    title: 'Unmapped URLs', sub: 'Bundle IDs not in platform_url_map · Last 7 days',
+    kpis: [
+      { label:'Total Requests', val:'123,440', cls:'' },
+      { label:'Segments Served', val:'40,165', cls:'' },
+      { label:'Unmatched', val:'83,275', cls:'red' },
+      { label:'Failure Rate', val:'67.4%', cls:'red' },
+    ],
+    insights: `
+      <div class="insight-card">
+        <div class="insight-title">🔴 Critical Failure Rate</div>
+        <div class="insight-body">
+          67.4% of requests from unmapped bundle IDs are failing. 1,240 distinct bundle IDs have no entry in <code style="font-family:var(--mono);font-size:11px">platform_url_map</code>. While an unmapped URL can still be matched (and 32.6% are), the majority are not covered by any matching criteria.
+          <ul>
+            <li>Query: <code style="font-family:var(--mono);font-size:11px">SELECT url, COUNT(*) FROM ctv_stats WHERE matchedby='' AND url NOT IN (SELECT url FROM platform_url_map) GROUP BY url ORDER BY COUNT(*) DESC LIMIT 50</code></li>
+            <li>Add the top-volume unmapped URLs to platform_url_map</li>
+            <li>Review whether matching criteria should cover these content types</li>
+          </ul>
+        </div>
+      </div>
+      <div class="insight-card">
+        <div class="insight-title">📋 Matching Method Gap</div>
+        <div class="insight-body">
+          The 32.6% of unmapped requests that do succeed are matched via CG (primary). No C_JOYN or C_IRIS activity. Expanding criteria to cover the most common unmapped URL patterns could recover a significant volume.
+        </div>
+      </div>
+    `
+  },
+  vizio: {
+    title: 'Vizio', sub: 'Failure analysis · Last 7 days',
+    kpis: [
+      { label:'Total Requests', val:'211,000', cls:'' },
+      { label:'Segments Served', val:'158,900', cls:'' },
+      { label:'Unmatched', val:'52,100', cls:'red' },
+      { label:'Failure Rate', val:'24.7%', cls:'red' },
+    ],
+    insights: `
+      <div class="insight-card">
+        <div class="insight-title">🟡 Regional Disparity</div>
+        <div class="insight-body">
+          euc-1 failure rate is 34.1% vs 18.2% in use-1 — a 15.9 pp gap. C_JOYN appears to not fire for Vizio content in euc-1 despite firing for other platforms in the same region. Failure rate is trending up (+3.2 pp vs last week).
+        </div>
+      </div>
+      <div class="insight-card">
+        <div class="insight-title">📊 Matching Methods</div>
+        <div class="insight-body">
+          CG and G are active. C_JOYN and C_IRIS have not fired for Vizio in the observed period. Adding Vizio bundle IDs to C_JOYN scope for euc-1 may recover ~15 pp failure rate.
+        </div>
+      </div>
+    `
+  }
+};
+
+// Default fallback modal data
+function getModalData(key) {
+  if (modalData[key]) return modalData[key];
+  const p = platforms.find(x => x.detail === key);
+  if (!p) return null;
+  return {
+    title: p.platform,
+    sub: `Failure analysis · Last 7 days`,
+    kpis: [
+      { label:'Total Requests', val: p.total.toLocaleString(), cls:'' },
+      { label:'Segments Served', val: (p.total - p.unmatched).toLocaleString(), cls:'' },
+      { label:'Unmatched', val: p.unmatched.toLocaleString(), cls:'red' },
+      { label:'Failure Rate', val: p.failureRate + '%', cls: p.failureRate >= 20 ? 'red' : 'amber' },
+    ],
+    insights: `
+      <div class="insight-card">
+        <div class="insight-title">📊 Failure Summary</div>
+        <div class="insight-body">
+          ${p.unmatched.toLocaleString()} requests had <code style="font-family:var(--mono);font-size:11px">matchedby = ''</code> — nothing sent to TTD. Failure rate: <strong>${p.failureRate}%</strong>. Active matching methods: ${p.methods.join(', ')}.
+        </div>
+      </div>
+      <div class="insight-card">
+        <div class="insight-title">ℹ️ Brand Safety Note</div>
+        <div class="insight-body">
+          <code style="font-family:var(--mono);font-size:11px">isbrandsafe</code> is a content attribute only — it does not block delivery. The only failure cause is <code style="font-family:var(--mono);font-size:11px">matchedby = ''</code>.
+        </div>
+      </div>
+    `
+  };
+}
+
+function openModal(key) {
+  const data = getModalData(key);
+  if (!data) return;
+  document.getElementById('modalTitle').textContent = data.title;
+  document.getElementById('modalSub').textContent = data.sub;
+  document.getElementById('modalKpis').innerHTML = data.kpis.map(k => `
+    <div class="modal-kpi">
+      <div class="modal-kpi-val ${k.cls}">${k.val}</div>
+      <div class="modal-kpi-label">${k.label}</div>
+    </div>
+  `).join('');
+  document.getElementById('modalInsights').innerHTML = data.insights;
+  document.getElementById('platformModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('platformModal').classList.remove('open');
+}
+
+document.getElementById('platformModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeAIModal(); } });
+
+// ── Offenders data (25 entries, sorted by days desc then requests desc) ───────
+const offendersData = [
+  { id:'ct_8f3a91c2', title:'Untitled S3E7',        platform:'Tubi',     bundle:'com.tubitv.tubi',               days:9,  requests:14320 },
+  { id:'ct_713bc220', title:'Sports Wrap #14',       platform:'Tubi',     bundle:'com.tubitv.tubi',               days:9,  requests:2280  },
+  { id:'ct_2b7e4d01', title:'Live News Block',       platform:'Unmapped', bundle:'air.com.unknown.news.ctv',      days:7,  requests:9841  },
+  { id:'ct_9a11bcde', title:'Regional News Live',    platform:'Unmapped', bundle:'1091249104.ctv.unknown',        days:7,  requests:2590  },
+  { id:'ct_a4c62f88', title:'Sports Wrap #14',       platform:'Vizio',    bundle:'com.viziotvsidekick.sctv',      days:6,  requests:7203  },
+  { id:'ct_d44f9902', title:'Late Night S4E12',      platform:'Unmapped', bundle:'com.peacock.peacocktv',         days:6,  requests:3210  },
+  { id:'ct_c77a5812', title:'Kids Hour Block',       platform:'LG',       bundle:'com.lgsi.smartworld.tv',        days:5,  requests:3621  },
+  { id:'ct_62e8b441', title:'Thriller S2E8',         platform:'Unmapped', bundle:'com.philo.android.tv',          days:5,  requests:2190  },
+  { id:'ct_af7d1101', title:'Reality Show S2E9',     platform:'Unmapped', bundle:'com.frndlytv.android',          days:5,  requests:1421  },
+  { id:'ct_3d91b7e5', title:'Reality Mix S1E2',      platform:'Tubi',     bundle:'com.tubitv.tubi',               days:4,  requests:6670  },
+  { id:'ct_8bc3e4f2', title:'Cooking Show S3E5',     platform:'Rakuten',  bundle:'com.rakuten.viki.android',      days:4,  requests:2401  },
+  { id:'ct_0f8bc201', title:'Music Live S1E4',       platform:'Joyn',     bundle:'de.joyn.joynplus',              days:4,  requests:1540  },
+  { id:'ct_eb3cf701', title:'Weather & News',        platform:'Unmapped', bundle:'com.accuweather.android.tv',    days:4,  requests:987   },
+  { id:'ct_f01c44a9', title:'Documentary Block',     platform:'Rakuten',  bundle:'com.rakuten.tv.android',        days:3,  requests:4128  },
+  { id:'ct_e91b2241', title:'Nature Series S1E3',    platform:'Vizio',    bundle:'com.viziotvsidekick.sctv',      days:3,  requests:2988  },
+  { id:'ct_4e2b1109', title:'Travel Show Block',     platform:'Vizio',    bundle:'com.viziotvsidekick.sctv',      days:3,  requests:1923  },
+  { id:'ct_be6c0001', title:'History Doc S1E7',      platform:'Rakuten',  bundle:'com.rakuten.tv.android',        days:3,  requests:1302  },
+  { id:'ct_2c0af901', title:'Finance News',          platform:'Unmapped', bundle:'com.bloomberg.android.tv',      days:3,  requests:1741  },
+  { id:'ct_f2234ac1', title:'Comedy Special',        platform:'Amazon',   bundle:'com.amazon.amazonvideo.edge',   days:2,  requests:2741  },
+  { id:'ct_5fa3c009', title:'True Crime S1E1',       platform:'LG',       bundle:'com.lge.lgsmarthometv',         days:2,  requests:2044  },
+  { id:'ct_3dcc8801', title:'Drama S5E3',            platform:'Amazon',   bundle:'com.amazon.amazonvideo.edge',   days:2,  requests:1812  },
+  { id:'ct_1a9be301', title:'Animation Block',       platform:'Samsung',  bundle:'com.samsung.tv.store',          days:2,  requests:1630  },
+  { id:'ct_cd5af901', title:'Sci-fi Series S3E2',    platform:'Tubi',     bundle:'com.tubitv.tubi',               days:2,  requests:1203  },
+  { id:'ct_dc4be801', title:'Sports Talk Show',      platform:'LG',       bundle:'com.lge.app.smartworld',        days:1,  requests:1104  },
+  { id:'ct_b12e3309', title:'Morning Show S2E1',     platform:'Unmapped', bundle:'tv.pluto.android',              days:1,  requests:940   },
+];
+
+function renderOffendersTable() {
+  const n = parseInt(document.getElementById('offenderLimit').value, 10);
+  const rows = offendersData.slice(0, n);
+  document.getElementById('offendersTableBody').innerHTML = rows.map(r => {
+    const cls = r.days >= 7 ? '' : r.days >= 3 ? 'amber' : 'amber';
+    const badgeCls = r.days >= 5 ? '' : 'amber';
+    return `<tr>
+      <td><span class="content-id">${r.id}</span></td>
+      <td><span class="content-title">${r.title}</span></td>
+      <td>${r.platform}</td>
+      <td><span class="content-id" style="font-size:10px;">${r.bundle}</span></td>
+      <td><span class="days-badge ${badgeCls}">${r.days}d</span></td>
+      <td style="font-family:var(--mono);font-size:11px;">${r.requests.toLocaleString()}</td>
+      <td><button class="detail-btn" onclick="openAIModal('${r.id}','${r.bundle}','${r.platform}',${r.days})">🤖 Research</button></td>
+    </tr>`;
+  }).join('');
+}
+renderOffendersTable();
+
+// ── ChatGPT Chrome proxy ──────────────────────────────────────────────────────
+const PROXY = 'http://localhost:8766';
+
+async function checkProxy() {
+  const dot  = document.getElementById('proxyDot');
+  const text = document.getElementById('proxyStatusText');
+  const note = document.getElementById('proxyInstructions');
+  dot.className  = 'proxy-dot checking';
+  text.textContent = 'Checking ChatGPT proxy…';
+  note.classList.remove('visible');
+  try {
+    const res = await fetch(`${PROXY}/health`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      dot.className    = 'proxy-dot connected';
+      text.textContent = 'ChatGPT proxy connected — AI features ready';
+      return true;
+    }
+    throw new Error(`HTTP ${res.status}`);
+  } catch {
+    dot.className    = 'proxy-dot disconnected';
+    text.textContent = 'ChatGPT proxy not running';
+    note.classList.add('visible');
+    return false;
+  }
+}
+
+async function aiRequest(prompt) {
+  const res = await fetch(`${PROXY}/ask`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Proxy returned HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.answer || '';
+}
+
+function parseJsonFromText(text) {
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) throw new Error('ChatGPT did not return a valid JSON array. Try again.');
+  return JSON.parse(match[0]);
+}
+
+// Check on load
+checkProxy();
+
+// ── Anomaly Detection via Gemini ──────────────────────────────────────────────
+async function analyzeAnomalies() {
+  
+  const btn = document.getElementById('anomalyAiBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Analyzing…';
+
+  const list = document.getElementById('anomalyList');
+  list.innerHTML = `<div class="ai-shimmer-block">
+    <div class="loading-shimmer" style="height:64px;border-radius:8px;"></div>
+    <div class="loading-shimmer" style="height:64px;border-radius:8px;"></div>
+    <div class="loading-shimmer" style="height:64px;border-radius:8px;"></div>
+  </div>`;
+
+  const platformSummary = platforms.map(p =>
+    `${p.platform}: failureRate=${p.failureRate}%, unmatched=${p.unmatched}, trend=${p.trend}(${p.trendVal}), activeMethods=[${p.methods.join(',')}]`
+  ).join('\n');
+
+  const prompt = `You are analyzing CTV advertising failure data for Silverpush, a segment supplier to TTD (The Trade Desk).
+
+BUSINESS CONTEXT:
+- matchedby = '' means FAILURE — no audience segment sent to TTD. This is the ONLY failure type.
+- matchedby != '' (CG, G, C_JOYN, C_IRIS) means SUCCESS — segment sent to TTD.
+- Brand safety (isbrandsafe) does NOT cause failures. Unmapped URLs alone do NOT cause failures.
+- Overall failure rate: 14.5% (up 2.3pp vs previous 7 days)
+
+PLATFORM DATA (last 7 days):
+${platformSummary}
+
+REGION DATA:
+- euc-1: 18.2% failure rate, 51,204 unmatched of 281,320 total
+- use-1: 12.4% failure rate, 218,460 unmatched of 1,762,000 total
+- aps-1: 15.8% failure rate, 143,183 unmatched of 906,220 total
+
+Identify the top 3 most critical anomalies. Return ONLY a valid JSON array — no text before or after:
+[
+  {
+    "severity": "critical",
+    "title": "short anomaly title",
+    "description": "1-2 sentences: what is wrong and why it matters for TTD delivery",
+    "meta": "timing/region context, e.g. Detected: last 24h · euc-1",
+    "badge": "concise metric e.g. +12.8pp or 67.4%"
+  }
+]`;
+
+  try {
+    const text = await aiRequest(prompt);
+    const anomalies = parseJsonFromText(text);
+    document.getElementById('anomalyCountTag').textContent = `${anomalies.length} active`;
+    list.innerHTML = anomalies.map(a => `
+      <div class="anomaly-card ${a.severity === 'warning' ? 'warn' : ''}">
+        <div class="anomaly-icon">${a.severity === 'critical' ? '🔴' : '🟡'}</div>
+        <div class="anomaly-body">
+          <div class="anomaly-title">${a.title}</div>
+          <div class="anomaly-desc">${a.description}</div>
+          <div class="anomaly-meta">${a.meta}</div>
+        </div>
+        <div class="anomaly-badge ${a.severity === 'critical' ? 'crit' : 'warn'}">${a.badge}</div>
+      </div>`).join('');
+  } catch (err) {
+    list.innerHTML = `<div class="ai-error">Gemini error: ${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ Re-analyze';
+  }
+}
+
+// ── Recommendations via Gemini ────────────────────────────────────────────────
+async function generateRecommendations() {
+  
+  const btn = document.getElementById('recoAiBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating…';
+
+  const list = document.getElementById('recoList');
+  list.innerHTML = `<div class="ai-shimmer-block">
+    <div class="loading-shimmer" style="height:80px;border-radius:8px;"></div>
+    <div class="loading-shimmer" style="height:80px;border-radius:8px;"></div>
+    <div class="loading-shimmer" style="height:80px;border-radius:8px;"></div>
+    <div class="loading-shimmer" style="height:80px;border-radius:8px;"></div>
+  </div>`;
+
+  const platformSummary = platforms.map(p =>
+    `${p.platform}: failureRate=${p.failureRate}%, unmatched=${p.unmatched}, trend=${p.trend}(${p.trendVal}), activeMethods=[${p.methods.join(',')}]`
+  ).join('\n');
+
+  const prompt = `You are a CTV advertising data engineer at Silverpush, a segment supplier to TTD (The Trade Desk).
+
+BUSINESS CONTEXT:
+- matchedby = '' means FAILURE (nothing sent to TTD). The ONLY fix is to get matching criteria to fire.
+- Matching methods: CG, G, C_JOYN, C_IRIS. A request is served if ANY of them fires.
+- Brand safety does NOT cause failures and is NOT actionable here.
+- Overall failure rate: 14.5% (up 2.3pp vs previous 7 days, 412,847 unmatched requests)
+
+PLATFORM DATA (last 7 days):
+${platformSummary}
+
+REGION DATA:
+- euc-1: 18.2% failure rate | use-1: 12.4% | aps-1: 15.8%
+
+CONTENT REPEAT OFFENDERS (100% failure rate):
+- ct_8f3a91c2 on Tubi (9 days, 14,320 requests)
+- ct_2b7e4d01 on Unmapped (7 days, 9,841 requests)
+- ct_a4c62f88 on Vizio (6 days, 7,203 requests)
+
+Generate exactly 4 actionable recommendations to reduce the failure rate. Return ONLY a valid JSON array — no text before or after:
+[
+  {
+    "title": "action title",
+    "description": "2-3 sentences: specific actionable steps referencing the actual data above",
+    "impact": "high" | "medium" | "low"
+  }
+]`;
+
+  try {
+    const text = await aiRequest(prompt);
+    const recos = parseJsonFromText(text);
+    const highCount = recos.filter(r => r.impact === 'high').length;
+    document.getElementById('recoCountTag').textContent = `${highCount} high impact`;
+    const colors = { high: '#dc2626', medium: '#d97706', low: '#2d9b6f' };
+    list.innerHTML = recos.map((r, i) => `
+      <div class="reco-card">
+        <div class="reco-num" style="background:${colors[r.impact] || '#64748b'}">${i + 1}</div>
+        <div class="reco-body">
+          <div class="reco-title">${r.title}</div>
+          <div class="reco-desc">${r.description}</div>
+        </div>
+        <span class="reco-impact ${r.impact}">${r.impact.charAt(0).toUpperCase() + r.impact.slice(1)} impact</span>
+      </div>`).join('');
+  } catch (err) {
+    list.innerHTML = `<div class="ai-error">Gemini error: ${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ Regenerate';
+  }
+}
+
+// ── Bundle Research modal via Gemini ──────────────────────────────────────────
+let currentAIRow = null;
+
+function openAIModal(contentId, bundleId, platform, days) {
+  currentAIRow = { contentId, bundleId, platform, days };
+  document.getElementById('aiContentId').textContent = contentId;
+  document.getElementById('aiBundleId').textContent  = bundleId;
+  document.getElementById('aiPlatform').textContent  = platform;
+  document.getElementById('aiDays').textContent      = days + ' consecutive days';
+  document.getElementById('aiModalSub').textContent  = `${platform} · ${bundleId}`;
+  resetAIModal();
+  document.getElementById('aiModal').classList.add('open');
+}
+
+function closeAIModal() {
+  document.getElementById('aiModal').classList.remove('open');
+}
+
+function resetAIModal() {
+  document.getElementById('aiInitialState').style.display = 'block';
+  document.getElementById('aiLoadingState').style.display = 'none';
+  document.getElementById('aiResultState').style.display  = 'none';
+}
+
+async function runAIResearch() {
+  
+  if (!currentAIRow) return;
+  document.getElementById('aiInitialState').style.display = 'none';
+  document.getElementById('aiLoadingState').style.display = 'block';
+  document.getElementById('aiResultState').style.display  = 'none';
+
+  const { contentId, bundleId, platform, days } = currentAIRow;
+  const prompt = `You are a CTV advertising data engineer. A content request has been failing to match any audience segments for ${days} consecutive days.
+
+Content ID: ${contentId}
+Bundle ID: ${bundleId}
+Reported platform: ${platform}
+
+In this system, matching is done via criteria methods CG, G, C_JOYN, and C_IRIS. A failure means matchedby = '' — no criteria fired. Brand safety does NOT cause failures.
+
+Provide a concise analysis with exactly these four sections (use the bold header format shown):
+1. App / Platform identity — what app this bundle ID belongs to, device platform.
+2. Why it's unmatched — likely reasons none of CG, G, C_JOYN, C_IRIS fired.
+3. Content category — typical content type and how it affects matchability.
+4. Suggested fix — specific actionable steps to extend matching criteria.
+
+Be practical and concise. No markdown symbols other than the numbered bold headers.`;
+
+  try {
+    const text = await aiRequest(prompt);
+    document.getElementById('aiLoadingState').style.display = 'none';
+    document.getElementById('aiResultState').style.display  = 'block';
+    const html = text
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/^(\d\.\s)/gm, '<br><span style="font-weight:600;color:var(--text-primary);">$1</span>')
+      .replace(/\n/g, '<br>');
+    document.getElementById('aiResultBody').innerHTML = html;
+  } catch (err) {
+    document.getElementById('aiLoadingState').style.display = 'none';
+    document.getElementById('aiResultState').style.display  = 'block';
+    document.getElementById('aiResultBody').innerHTML =
+      `<div class="ai-error">Error: ${err.message}</div>`;
+  }
+}
+
+document.getElementById('aiModal').addEventListener('click', function(e) {
+  if (e.target === this) closeAIModal();
+});
+
+</script>
+</body>
+</html>

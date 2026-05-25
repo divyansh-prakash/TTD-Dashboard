@@ -1,0 +1,1844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CTV Failure Prevention Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-page:         #F5F5F7;
+      --bg-card:         #FFFFFF;
+      --bg-card-inner:   #F9F9FB;
+      --bg-elevated:     #FFFFFF;
+
+      --primary:         #30D158;
+      --primary-dark:    #25A244;
+      --primary-subtle:  rgba(48, 209, 88, 0.10);
+      --primary-glow:    rgba(48, 209, 88, 0.18);
+
+      --blue:            #0071E3;
+      --blue-subtle:     rgba(0, 113, 227, 0.10);
+      --blue-glow:       rgba(0, 113, 227, 0.16);
+
+      --danger:          #FF3B30;
+      --danger-subtle:   rgba(255, 59, 48, 0.09);
+      --danger-glow:     rgba(255, 59, 48, 0.16);
+
+      --warning:         #FF9F0A;
+      --warning-subtle:  rgba(255, 159, 10, 0.09);
+
+      --text-primary:    #1D1D1F;
+      --text-secondary:  #86868B;
+      --text-tertiary:   #AEAEB2;
+
+      --border:          rgba(0,0,0,0.07);
+      --border-strong:   rgba(0,0,0,0.11);
+
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 20px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.05);
+
+      --radius-sm:  8px;
+      --radius-md:  12px;
+      --radius-lg:  16px;
+      --radius-xl:  20px;
+
+      --font-display: 'Syne', sans-serif;
+      --font-body:    'DM Sans', sans-serif;
+      --font-mono:    'JetBrains Mono', monospace;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-page);
+      color: var(--text-primary);
+      font-size: 13.5px;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: rgba(245, 245, 247, 0.85);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.02em;
+      color: var(--text-primary);
+    }
+    .header-brand svg { flex-shrink: 0; }
+    .global-filters {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .global-filters label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .global-filters select, .diag-filters select {
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      padding: 5px 28px 5px 10px;
+      font-size: 12px;
+      font-family: var(--font-body);
+      color: var(--text-primary);
+      background: var(--bg-card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2386868B' d='M5 7L1 2h8z'/%3E%3C/svg%3E") no-repeat right 9px center;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .global-filters select:focus, .diag-filters select:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px var(--blue-subtle);
+    }
+
+    /* ── Page title ── */
+    .page-header { padding: 28px 28px 0; }
+    .page-header h1 {
+      font-family: var(--font-display);
+      font-size: 27px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      line-height: 1.1;
+    }
+    .page-header p {
+      color: var(--text-secondary);
+      font-size: 12.5px;
+      margin-top: 5px;
+      letter-spacing: 0.01em;
+    }
+
+    /* ── Tabs ── */
+    .tabs { padding: 20px 28px 0; margin: 0 0 22px; }
+    .tab-list {
+      display: inline-flex;
+      background: rgba(0,0,0,0.04);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      border-radius: 7px;
+      padding: 6px 16px;
+      font-size: 12.5px;
+      font-weight: 500;
+      font-family: var(--font-body);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.16s ease;
+    }
+    .tab-btn.active {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      font-weight: 600;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.06);
+    }
+    .tab-btn:hover:not(.active) { color: var(--text-primary); }
+
+    /* ── Tab panes ── */
+    .tab-pane { display: none; padding: 0 28px 36px; }
+    .tab-pane.active { display: block; animation: fadeIn 0.2s ease; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    /* ── KPI cards ── */
+    .kpi-row { display: grid; gap: 12px; margin-bottom: 16px; }
+    .kpi-row--5 { grid-template-columns: repeat(5, 1fr); }
+    .kpi-row--6 { grid-template-columns: repeat(6, 1fr); }
+    .kpi-row--3 { grid-template-columns: repeat(3, 1fr); }
+    .kpi-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      padding: 20px 22px;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    }
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 1px;
+      display: none;
+    }
+    .kpi-card:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+    .kpi-card__label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      margin-bottom: 10px;
+      font-family: var(--font-body);
+    }
+    .kpi-card__value {
+      font-family: var(--font-mono);
+      font-size: 29px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+    .kpi-card__value.green { color: var(--primary);  text-shadow: 0 0 28px var(--primary-glow); }
+    .kpi-card__value.red   { color: var(--danger);   text-shadow: 0 0 28px var(--danger-glow); }
+
+    /* ── Chart cards ── */
+    .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .chart-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      padding: 20px 22px;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+    .chart-card::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 1px;
+      display: none;
+    }
+    .chart-card--full { grid-column: 1 / -1; }
+    .chart-card h3 {
+      font-family: var(--font-body);
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 18px;
+    }
+    .chart-card canvas { max-height: 280px; }
+
+    /* ── Section titles ── */
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+      margin-bottom: 14px;
+      margin-top: 12px;
+    }
+
+    /* ── Diagnose filters ── */
+    .diag-filters {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 16px;
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      padding: 12px 16px;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+    }
+    .diag-filters label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10.5px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    /* ── RCA header + toggle ── */
+    .rca-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      margin-top: 12px;
+    }
+    .rca-view-toggle { margin: 0; }
+
+    /* ── RCA card ── */
+    .rca-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      padding: 0;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 18px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    /* ── Tables ── */
+    .table-wrap {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    thead tr { background: #F5F5F7; }
+    thead th {
+      color: var(--text-secondary);
+      padding: 11px 16px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 10px;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      user-select: none;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-body);
+    }
+    thead th.sortable { cursor: pointer; }
+    thead th.sortable:hover { color: var(--blue); background: rgba(0,113,227,0.05); }
+    thead th .sort-icon { margin-left: 4px; opacity: 0.4; font-size: 9px; }
+    thead th.sort-asc  .sort-icon::after { content: ' ▲'; opacity: 1; }
+    thead th.sort-desc .sort-icon::after { content: ' ▼'; opacity: 1; }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(0,0,0,0.018); }
+    tbody td { padding: 10px 16px; color: var(--text-primary); vertical-align: middle; }
+    td.success-val { color: var(--primary); font-weight: 600; font-family: var(--font-mono); font-size: 12px; }
+    td.danger-val  { color: var(--danger);  font-weight: 600; font-family: var(--font-mono); font-size: 12px; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block;
+      border-radius: 50px;
+      padding: 2px 9px;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    .badge--success { background: rgba(48,209,88,0.10);  color: var(--primary); }
+    .badge--danger  { background: rgba(255,59,48,0.11);  color: var(--danger); }
+    .badge--warn    { background: rgba(255,159,10,0.10);  color: var(--warning); }
+    .badge--blue    { background: rgba(0,113,227,0.11); color: var(--blue); }
+    .badge--gray    { background: rgba(0,0,0,0.05);       color: var(--text-secondary); }
+
+    /* ── Content ID truncation ── */
+    .content-id {
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--text-secondary);
+    }
+
+    /* ── Empty state ── */
+    .empty-state { text-align: center; padding: 52px; color: var(--text-tertiary); font-size: 13px; }
+
+    @media (max-width: 1100px) {
+      .kpi-row--5, .kpi-row--6 { grid-template-columns: repeat(3, 1fr); }
+      .chart-row  { grid-template-columns: 1fr; }
+    }
+
+    /* ── Platform Breakdown Modal ── */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-xl);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.09);
+      width: min(800px, calc(100vw - 40px));
+      height: min(600px, calc(100vh - 80px));
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      background: rgba(0,0,0,0.02);
+    }
+    .modal-header h2 {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+    }
+    .modal-header p {
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+      font-family: var(--font-mono);
+    }
+    .modal-close {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.04);
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s, color 0.15s;
+    }
+    .modal-close:hover { background: rgba(0,0,0,0.07); color: var(--text-primary); }
+    .modal-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      overflow-x: auto;
+      background: rgba(0,0,0,0.02);
+    }
+    .modal-tab-btn {
+      border: none;
+      background: none;
+      padding: 10px 16px 12px;
+      font-size: 12.5px;
+      font-weight: 500;
+      font-family: var(--font-body);
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .modal-tab-btn.active { color: var(--text-primary); font-weight: 600; border-bottom-color: var(--blue); }
+    .modal-tab-btn:hover:not(.active) { color: var(--text-primary); }
+    .modal-tab-btn .tab-pct {
+      display: inline-block;
+      margin-left: 6px;
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 50px;
+      font-family: var(--font-mono);
+    }
+    .modal-tab-btn.tab-deep     .tab-pct { background: rgba(48,209,88,0.10);  color: var(--primary); }
+    .modal-tab-btn.tab-shallow  .tab-pct { background: rgba(255,159,10,0.10);  color: var(--warning); }
+    .modal-tab-btn.tab-unmatched .tab-pct { background: rgba(255,59,48,0.10);  color: var(--danger); }
+    .modal-body { overflow-y: auto; flex: 1; min-height: 0; padding: 0; }
+    .modal-pane { display: none; }
+    .modal-pane.active { display: block; }
+    .modal-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .modal-table thead th {
+      background: #F5F5F7;
+      color: var(--text-secondary);
+      padding: 10px 16px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      position: sticky;
+      top: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-table tbody tr { border-bottom: 1px solid var(--border); }
+    .modal-table tbody tr:last-child { border-bottom: none; }
+    .modal-table tbody tr:hover { background: rgba(0,0,0,0.018); }
+    .modal-table td { padding: 9px 16px; vertical-align: middle; color: var(--text-primary); }
+    .modal-table .mono {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--text-secondary);
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .modal-table .matcher-badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 50px;
+      font-size: 10.5px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      background: rgba(0,0,0,0.05);
+      color: var(--text-primary);
+    }
+    .modal-table .matcher-badge.deep      { background: rgba(48,209,88,0.10);  color: var(--primary); }
+    .modal-table .matcher-badge.shallow   { background: rgba(255,159,10,0.10);  color: var(--warning); }
+    .modal-table .matcher-badge.unmatched { background: rgba(255,59,48,0.10);  color: var(--danger); }
+    .modal-empty { text-align: center; padding: 36px; color: var(--text-tertiary); font-size: 13px; }
+    .chart-card--clickable { cursor: pointer; }
+    .chart-card--clickable:hover { border-color: rgba(0,113,227,0.28); }
+    .chart-card--clickable:hover h3::after { content: ' ↗'; font-size: 10px; color: var(--blue); }
+
+    /* ── Sparklines table ── */
+    .sparklines-section { margin-bottom: 24px; }
+    .sparklines-section h2 { margin-bottom: 12px; }
+    .spark-table { width: 100%; border-collapse: collapse; }
+    .spark-table td, .spark-table th { padding: 9px 14px; text-align: left; }
+    .spark-table thead tr { background: #F5F5F7; border-bottom: 1px solid var(--border); }
+    .spark-table thead th { font-size: 10px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-secondary); font-family: var(--font-body); }
+    .spark-table tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+    .spark-table tbody tr:last-child { border-bottom: none; }
+    .spark-table tbody tr:hover { background: rgba(0,0,0,0.018); }
+    .spark-table .platform-name { font-weight: 600; color: var(--text-primary); font-size: 13px; }
+    .spark-table .spark-cell { padding: 6px 14px; }
+    .spark-table .stat-mono { font-family: var(--font-mono); font-size: 12px; }
+
+    /* ── Accordion (By Platform RCA) ── */
+    .rca-accordion { }
+    .rca-acc-item { border-bottom: 1px solid var(--border); }
+    .rca-acc-item:last-child { border-bottom: none; }
+    .rca-acc-summary {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; cursor: pointer; list-style: none;
+      background: var(--bg-card); user-select: none;
+      transition: background 0.12s;
+    }
+    .rca-acc-summary::-webkit-details-marker { display: none; }
+    .rca-acc-summary:hover { background: rgba(0,0,0,0.02); }
+    details[open] .rca-acc-summary { background: rgba(0,113,227,0.03); border-bottom: 1px solid var(--border); }
+    .rca-acc-chevron { margin-left: auto; color: var(--text-tertiary); font-size: 11px; transition: transform 0.18s; }
+    details[open] .rca-acc-chevron { transform: rotate(90deg); }
+    .rca-acc-content {
+      max-height: 220px;
+      overflow-y: auto;
+      background: var(--bg-card-inner);
+    }
+    .rca-acc-content::-webkit-scrollbar { width: 5px; }
+    .rca-acc-content::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-brand">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <circle cx="8"  cy="8"  r="4" fill="#30D158"/>
+        <circle cx="20" cy="8"  r="4" fill="#30D158" opacity=".7"/>
+        <circle cx="8"  cy="20" r="4" fill="#30D158" opacity=".7"/>
+        <circle cx="20" cy="20" r="4" fill="#30D158" opacity=".4"/>
+      </svg>
+      Silverpush &middot; CTV
+    </div>
+    <div class="global-filters">
+      <label>Date
+        <select id="filter-date">
+          <option value="all">All Time</option>
+          <option value="today" selected>Today</option>
+          <option value="7d">Last 7 Days</option>
+          <option value="30d">Last 30 Days</option>
+        </select>
+      </label>
+      <label>Location
+        <select id="filter-location"><option value="all">All</option></select>
+      </label>
+    </div>
+  </header>
+
+  <!-- Page title -->
+  <div class="page-header">
+    <h1>Failure Prevention Dashboard</h1>
+    <p>Monitor CTV content matching failures and diagnose root causes</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab-list">
+      <button class="tab-btn active" data-tab="overview">Overview</button>
+      <button class="tab-btn" data-tab="diagnose">Diagnose</button>
+    </div>
+  </div>
+
+  <!-- ── Overview Tab ── -->
+  <div id="tab-overview" class="tab-pane active">
+    <div id="kpi-row" class="kpi-row kpi-row--6"></div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <h3>Failures by Platform</h3>
+        <canvas id="chart-failures-platform"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Matched By Breakdown</h3>
+        <canvas id="chart-matchedby"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <h3>Top Failing Channels</h3>
+        <canvas id="chart-failing-channels"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Segment Coverage</h3>
+        <canvas id="chart-segment-coverage"></canvas>
+      </div>
+    </div>
+
+    <h2 class="section-title">Match Depth Analysis</h2>
+    <div id="match-depth-kpis" class="kpi-row kpi-row--3"></div>
+    <div class="chart-row">
+      <div class="chart-card chart-card--full chart-card--clickable">
+        <h3>Match Depth by Platform (Top 10)</h3>
+        <canvas id="chart-match-depth-platform" style="max-height:340px"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Platform Breakdown Modal -->
+  <div class="modal-backdrop" id="platform-modal-backdrop">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <div>
+          <h2 id="modal-platform-name"></h2>
+          <p id="modal-platform-total"></p>
+        </div>
+        <button class="modal-close" id="modal-close-btn" aria-label="Close">&#x2715;</button>
+      </div>
+      <div class="modal-tabs" id="modal-tabs"></div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ── Diagnose Tab ── -->
+  <div id="tab-diagnose" class="tab-pane">
+    <div class="diag-filters">
+      <label>Platform
+        <select id="diag-platform"><option value="all">All</option></select>
+      </label>
+      <label>Channel
+        <select id="diag-channel"><option value="all">All</option></select>
+      </label>
+      <label>Match Status
+        <select id="diag-status">
+          <option value="all">All</option>
+          <option value="failed">Failed</option>
+          <option value="success">Successful</option>
+        </select>
+      </label>
+      <label>Brand Safe
+        <select id="diag-brand">
+          <option value="all">All</option>
+          <option value="1">Yes</option>
+          <option value="0">No</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="diag-layout-container"></div>
+
+  </div>
+
+  <script>
+  /* ================================================================
+     SECTION 1 — MOCK DATA  (swap fetch() here when backend is ready)
+  ================================================================ */
+  const CTV_STATS_SEED = [
+    {contentid:"iris_ff89a4d4c0d6c082",url:"roku.ifoodtv",title:"",channel:"ifood.tv",region:"use-1",segment:"",total:1,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"03273750-7e4c-4b78-b3b0-77849be9fd80",url:"com.canela.ott.tv",title:"Confianza",channel:"canelatv_androidtv",region:"use-1",segment:"sp_movies_and_television,sp_thriller,sp_drama",total:1,success:1,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"6dfecbf819f89821a3fe2fbc49ab2477",url:"151908",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_highenergyoccasions,sp_lifestyle,sp_movie_fans_silverpush_vl",total:4,success:4,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"AMCNVR0000039148",url:"G22223020133",title:"",channel:"allrealitywetv",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_movie_fans_silverpush_vl,sp_movies_television_int,sp_millennials_silverpush_vl",total:1,success:1,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"EP013845521066",url:"directv.stb",title:"",channel:"fox_news",region:"use-1",segment:"sp_movies_and_television,sp_news_and_talk_shows,sp_movie_fans_silverpush_vl,sp_news_viewers_silverpush_vl",total:53,success:53,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_cd560337173a7eab",url:"com.plexapp.android",title:"",channel:"AMCN",region:"use-1",segment:"sp_movies_and_television,sp_horror,sp_slasher_horror,sp_comedy,sp_dark_comedy,sp_movie_fans_silverpush_vl",total:2,success:2,matchedby:"C_IRIS",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"626311b0c287f2001304338e_63bf4fca808b7400074fae07",url:"vizio.plutotv",title:"",channel:"",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush,sp_brandsafe_int",total:1,success:1,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"ce301b7d4c44b4e13a738ece7bd07d39",url:"151908",title:"",channel:"ce301b7d4c44b4e13a738ece7bd07d39",region:"use-1",segment:"sp_movies_and_television,sp_workplace_comedy,sp_comedy,sp_brand_safe,sp_pg_brandsafety,sp_movie_fans_silverpush_vl",total:5,success:5,matchedby:"C_ROKU",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"iris_eac1ccab7e0f0ea6",url:"firetv.filmrise",title:"",channel:"",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush,sp_brandsafe_int",total:2,success:2,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"5d7769a396b655001fdd4df2",url:"256567",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_movies,sp_movie_fans_silverpush_vl,sp_movies_television_int",total:18,success:18,matchedby:"C_PLEX",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_c7b91b3fad3c45bc",url:"596759",title:"",channel:"FilmRise",region:"use-1",segment:"sp_movies_and_television,sp_tv_series,sp_brand_safe,sp_pg_brandsafety,sp_movie_fans_silverpush_vl",total:5,success:5,matchedby:"CG",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"iris_77ed4d19ca6fa4bc",url:"B00KDSGIPK",title:"",channel:"",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush,sp_brandsafe_int",total:5,success:5,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"iris_78d7786e71021f9a",url:"Fawesome.Comcast",title:"",channel:"",region:"use-1",segment:"",total:1,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_798c60347128ac72",url:"com.plexapp.x1",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_drama,sp_movie_fans_silverpush_vl,sp_movies_television_int",total:9,success:9,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"EP009089410833",url:"G17347010659",title:"",channel:"food_network",region:"use-1",segment:"sp_movies_and_television,sp_cooking_and_food,sp_reality_tv_t2,sp_tv_series,sp_brand_safe",total:4,success:4,matchedby:"C_FUBO",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"64c950a5aab4dc0013e2be5a_64c950a7aab4dc0013e2be71",url:"74519",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_brand_safe,sp_pg_brandsafety,sp_movie_fans_silverpush_vl",total:1,success:1,matchedby:"C_PLUTO",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"iris_f1adad1292d2d4a6",url:"48630",title:"",channel:"",region:"use-1",segment:"",total:1,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_6e88cea0e1c88de2",url:"tv.pluto.comcastx1",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_drama,sp_movie_fans_silverpush_vl,sp_movies_television_int",total:2,success:2,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_d36a73c42c8aadee",url:"600853",title:"",channel:"Fawesome - Free Movies and TV Shows",region:"use-1",segment:"sp_movies_and_television,sp_romance,sp_drama,sp_indie_and_arthouse,sp_brand_safe",total:9,success:9,matchedby:"C_IRIS",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"cd58fc3f-a8e2-424e-b0be-7b21804474eb",url:"584171",title:"Bruma",channel:"canelatv_roku",region:"use-1",segment:"sp_movies_and_television,sp_drama,sp_movie_fans_silverpush_vl,sp_movies_television_int",total:1,success:1,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"64cb387ee3fea2609d1daaed6c6e5969",url:"151908",title:"vod",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_documentary,sp_historical,sp_brand_safe,sp_curious_minds_silver_vl",total:1,success:1,matchedby:"C_ROKU",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"66624_395932",url:"196460",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_highenergyoccasions,sp_movie_fans_silverpush_vl,sp_millennials_silverpush_vl",total:5,success:5,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_eaa91e36b08a744f",url:"tv.pluto.chromecast",title:"",channel:"",region:"use-1",segment:"",total:2,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_71fb0e0edbd27d94",url:"458741",title:"",channel:"Fawesome - Free Movies and TV Shows",region:"use-1",segment:"sp_movies_and_television,sp_comedy,sp_movie_fans_silverpush_vl",total:1,success:1,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_148dfcb7b5620c08",url:"tv.pluto.android",title:"",channel:"",region:"use-1",segment:"",total:2,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_d87fba18e26f6303",url:"com.xumo.x1",title:"",channel:"Xumo Free Movies",region:"use-1",segment:"sp_movies_and_television,sp_crime_and_mystery,sp_documentary,sp_true_crime,sp_brand_safe",total:1,success:1,matchedby:"C_IRIS",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"iris_fafc81d338e5970c",url:"48630",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_romance,sp_thriller,sp_reality_tv_t2,sp_brand_safe",total:5,success:5,matchedby:"C_IRIS",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"91ebc0279e02ae5a9023e40178509f85f08ec140",url:"196460",title:"",channel:"food",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:9,success:9,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"61ba6293b3ddda001368cddc_61ba6295b3ddda001368cde0",url:"tv.pluto.comcastxclass",title:"",channel:"",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:1,success:1,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"2_b5d80798431ff8df2dcf84a82b3a819f",url:"552828",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_movies,sp_drama,sp_romance,sp_movie_fans_silverpush_vl",total:28,success:28,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_0d9388e249273a5a",url:"firetv.filmrise",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_documentary,sp_true_crime,sp_brand_safe,sp_movie_fans_silverpush_vl",total:1,success:1,matchedby:"C_IRIS",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"iris_72cc0615801166b5",url:"CUSA05365",title:"",channel:"",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:2,success:2,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"AMCNVR0000045281",url:"g22223020133",title:"",channel:"AMC",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:1,success:1,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"a3e4afda8e5f3eb1ea88f21e4208308e",url:"151908",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_nature_documentary,sp_documentary,sp_brand_safe,sp_curious_minds_silver_vl",total:13,success:13,matchedby:"C_ROKU",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"68e0b681fa0f5ccff50c7567_68e0b682fa0f5ccff50c757f",url:"B00KDSGIPK",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_drama,sp_movie_fans_silverpush_vl,sp_movies_television_int",total:5,success:5,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"d83c904f8d0e03c3de1893a14442b689",url:"151908",title:"",channel:"",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:4,success:4,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"2_f7af663b84d7a14221039f45c3b083b1",url:"com.sling",title:"The Only Way Is Essex",channel:"So... Real",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_movie_fans_silverpush_vl,sp_millennials_silverpush_vl",total:1,success:1,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_284720740cd4239c",url:"74519",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_highenergyoccasions,sp_movie_fans_silverpush_vl,sp_millennials_silverpush_vl",total:6,success:6,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"05c39d1d44a3c39eab2fbe11e0f67714",url:"ROKU",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_drama,sp_war_and_history,sp_tv_series,sp_movie_fans_silverpush_vl",total:4,success:4,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"62509e1e7b9eaf001376d0a3_62509e217b9eaf001376d0a8",url:"tv.pluto.android",title:"",channel:"",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:3,success:3,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"iris_37d110b1bfcae791",url:"457877",title:"",channel:"",region:"use-1",segment:"",total:1,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"67ef2760b30226e551b42915",url:"13535",title:"",channel:"",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:4,success:4,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"http://haystack.tv/id/JQPy2kUF",url:"172665",title:"",channel:"Haystack News",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:7,success:7,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"646e0d36649e97001b5c09ff_646e0d36649e97001b5c0a14",url:"G18229011675",title:"PlutoTV: Frösche",channel:"5d767ae7b456c8cf265ce922",region:"use-1",segment:"sp_movies_and_television,sp_documentary,sp_brand_safe,sp_curious_minds_silver_vl",total:1,success:1,matchedby:"CG",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"4_5e7e858b950c951afde19a2635c4aff3",url:"B01MQTVN2T",title:"EPG WFTV 9 Orlando, FL",channel:"EPG WFTV 9 Orlando, FL",region:"use-1",segment:"sp_movies_and_television,sp_news_and_talk_shows,sp_news_viewers_silverpush_vl",total:14,success:14,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"67e6956bf795b4ce8d465367",url:"com.plexapp.desktop",title:"",channel:"No Reservations",region:"use-1",segment:"sp_movies_and_television,sp_documentary,sp_movie_fans_silverpush_vl,sp_curious_minds_silver_vl",total:1,success:1,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"e703db5129eb6119b011094b580da9a7",url:"B089QXRRHD",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_brand_safe,sp_action_and_adventure_t2,sp_survival_action,sp_movie_fans_silverpush_vl",total:8,success:8,matchedby:"C_ROKU",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"009f347cd0999e9e3c8526e5c3cb8a908d0abb03",url:"tv.vidaa.ui.plus",title:"FoodieBoy",channel:"newkfood",region:"use-1",segment:"",total:1,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_60987e5d804161e0",url:"B07W8FXWKK",title:"",channel:"Fawesome - Free Awesome TV & Movies",region:"use-1",segment:"sp_movies_and_television,sp_comedy,sp_movie_fans_silverpush_vl",total:1,success:1,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"EP014707060789",url:"WBD_Streaming",title:"",channel:"WBD_Streaming",region:"use-1",segment:"",total:1,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"1c1b4298668adbaaeeb52f524e08b111",url:"ROKU",title:"",channel:"",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:60,success:60,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"1_32fefd26ab4bc6d548b600529d51d3e1",url:"1473398077",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_drama,sp_movie_fans_silverpush_vl,sp_movies_television_int",total:1,success:1,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"d57a5dfbe75986b587e7562bd8e91a03",url:"151908",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_crime_and_mystery,sp_documentary,sp_brand_safe,sp_curious_minds_silver_vl",total:2,success:2,matchedby:"C_ROKU",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"8_a7b21154a4567439d7c6678a81e96921",url:"140474",title:"",channel:"trutv",region:"use-1",segment:"sp_movies_and_television,sp_tv_series,sp_movie_fans_silverpush_vl",total:1,success:1,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_4888107bed4c4b87",url:"600757",title:"",channel:"Fawesome - Free Movies and TV Shows",region:"use-1",segment:"sp_movies_and_television,sp_crime_and_mystery,sp_movie_fans_silverpush_vl",total:1,success:1,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_c9651db83e2eff8e",url:"B07BKPFXTJ",title:"",channel:"ae",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_crime_and_mystery,sp_movie_fans_silverpush_vl,sp_millennials_silverpush_vl",total:8,success:8,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"efe2dd7e9830c5e931e00eb839f6711d",url:"151908",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_animation,sp_comedy,sp_brand_safe,sp_movie_fans_silverpush_vl",total:8,success:8,matchedby:"C_ROKU",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"2_702203d9a606a38fcee6a86778dae8aa",url:"552828",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_crime_and_mystery,sp_drama,sp_movie_fans_silverpush_vl",total:7,success:7,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_90dba475a2e0b9d2",url:"com.univision.prendetv",title:"",channel:"ViX",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:1,success:1,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"a60077d579a65ae97ffb1d30a11d4e86c1ef984c",url:"196460",title:"",channel:"tlc",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_highenergyoccasions,sp_movie_fans_silverpush_vl,sp_millennials_silverpush_vl",total:8,success:8,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"2_7b90d9a6a86693e2e97a963bc749fa62",url:"vizio.watchfree",title:"",channel:"",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:14,success:14,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"iris_de9210ba6f78243f",url:"74519",title:"",channel:"",region:"use-1",segment:"",total:1,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"b81f8799064843e28a09fd26d1e2c050",url:"151908",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_competition_shows,sp_brand_safe,sp_movie_fans_silverpush_vl,sp_family_focus_silverpush_vl",total:18,success:18,matchedby:"C_ROKU",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"d178a80116060a337c3f69bd27cecbfa",url:"151908",title:"vod",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_scientific_exploration,sp_documentary,sp_brand_safe,sp_curious_minds_silver_vl",total:14,success:14,matchedby:"C_ROKU",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"cf8c060c9689355582ac8ca37d827271",url:"G18183011458",title:"vod",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_action_and_adventure_t2,sp_drama,sp_comedy,sp_movie_fans_silverpush_vl",total:2,success:2,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_ac57441f69060551",url:"vizio.xumoplay",title:"",channel:"Wu Tang Collection",region:"use-1",segment:"sp_movies_and_television,sp_tv_series,sp_movie_fans_silverpush_vl",total:2,success:2,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"ae0ca69b82f9be7f92b151b94a4ac8d6",url:"ROKU",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_highenergyoccasions,sp_movie_fans_silverpush_vl,sp_millennials_silverpush_vl",total:16,success:16,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"5_727f12885270effe38da914608e18bab",url:"13535",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_action_and_adventure_t2,sp_movie_fans_silverpush_vl,sp_event_seekers_silverpush_vl",total:9,success:9,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"4_2e213ee2ae5a7b83f34815b754c5b081",url:"97955",title:"EPG KITV Hyperlocal Honolulu",channel:"EPG KITV Hyperlocal Honolulu",region:"use-1",segment:"sp_movies_and_television,sp_news_and_talk_shows,sp_news_viewers_silverpush_vl",total:21,success:21,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_336baa9b5f73e512",url:"firetv.filmrise",title:"",channel:"FilmRise - Free Movies and TV Shows",region:"use-1",segment:"",total:1,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"5a8d3a6016eea1e654a455bb93021bc8bd389201",url:"G22223020133",title:"",channel:"cooking",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_movie_fans_silverpush_vl,sp_millennials_silverpush_vl",total:3,success:3,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_78d32933d9f194c9",url:"LG_Streaming",title:"",channel:"vod",region:"use-1",segment:"sp_movies_and_television,sp_documentary,sp_movie_fans_silverpush_vl,sp_curious_minds_silver_vl",total:4,success:4,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_11aa910a67351f06",url:"B076X8FKXP",title:"",channel:"Fawesome - Free Awesome TV & Movies",region:"use-1",segment:"sp_movies_and_television,sp_romance,sp_family_and_children,sp_drama,sp_brand_safe",total:78,success:78,matchedby:"C_IRIS",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"HDNC8cUm",url:"vizio.watchfree",title:"Standing Ground",channel:"812",region:"use-1",segment:"sp_movies_and_television,sp_documentary,sp_movie_fans_silverpush_vl,sp_curious_minds_silver_vl",total:1,success:1,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"10_9c2232f64e46e5a9871edd895f5603ce",url:"1087412",title:"Die Welt am Mittag",channel:"n24",region:"use-1",segment:"",total:1,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_a708a01d956df9ab",url:"48630",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_action_and_adventure_t2,sp_thriller,sp_war_and_history,sp_brand_safe",total:9,success:9,matchedby:"C_IRIS",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"EP036047720046",url:"Peacock_AX",title:"",channel:"bravo",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_tv_series,sp_brand_safe,sp_movie_fans_silverpush_vl",total:22,success:22,matchedby:"C_FUBO",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"224eb25972cc3062c962eb0d189d5ffd",url:"ROKU",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_movie_fans_silverpush_vl,sp_millennials_silverpush_vl",total:14,success:14,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"10_a9f4da2adc822f1b6f543ec9cafa6dce",url:"1244756",title:"",channel:"lifetime",region:"use-1",segment:"sp_movies_and_television,sp_biography,sp_documentary,sp_movie_fans_silverpush_vl,sp_curious_minds_silver_vl",total:1,success:1,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"10_3eae82f6052c24365a8f2a978963a654",url:"vizio.philo",title:"",channel:"amc",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:5,success:5,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"MV003793250000",url:"1074449",title:"Catch .44",channel:"Lionsgate",region:"use-1",segment:"sp_movies_and_television,sp_crime_and_mystery,sp_sensitive_category,sp_drugs",total:1,success:1,matchedby:"TS",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"LoneRanger_EP000026560213",url:"tv.pluto.comcastx1",title:"",channel:"",region:"use-1",segment:"",total:1,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"http://haystack.tv/id/e22H6BnV",url:"g19033012474",title:"",channel:"Haystack News",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:4,success:4,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"iris_44e3120ff515bdb6",url:"com.xumo.comcastx1",title:"",channel:"Xumo Free Comedy TV",region:"use-1",segment:"sp_movies_and_television,sp_comedy,sp_movie_fans_silverpush_vl",total:2,success:2,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"1b6b70f064cf03747f3d59153f317f6e",url:"151908",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_drama,sp_movie_fans_silverpush_vl",total:1,success:1,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"XM01FUACKYF574",url:"96065",title:"",channel:"Movies Page - DRM",region:"use-1",segment:"sp_movies_and_television,sp_action_and_adventure_t2,sp_movie_fans_silverpush_vl,sp_event_seekers_silverpush_vl",total:2,success:2,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_a73c2d13842ac108",url:"B076X8FKXP",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_tv_series,sp_crime_and_mystery,sp_science_fiction,sp_movie_fans_silverpush_vl",total:5,success:5,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"1_4a05f29c83ad2e92c4ff66762e7656a9",url:"ROKU",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_movie_fans_silverpush_vl,sp_millennials_silverpush_vl",total:2,success:2,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"a9f26614d4d411de195580ea17db2ec5",url:"ROKU",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_drama,sp_movie_fans_silverpush_vl",total:2,success:2,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_74d19434f5e9de79",url:"48630",title:"",channel:"Fawesome - Free Movies and TV Shows",region:"use-1",segment:"sp_movies_and_television,sp_crime_and_mystery,sp_drama,sp_movie_fans_silverpush_vl",total:18,success:18,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"2_97cd4355b5959fd80cd95bf133b883d2",url:"vizio.tubitv",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_horror,sp_fantasy,sp_movie_fans_silverpush_vl",total:15,success:15,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"iris_daa6a6892ca97532",url:"com.cbs.ott",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_reality_tv_t2,sp_highenergyoccasions,sp_movie_fans_silverpush_vl,sp_millennials_silverpush_vl",total:4,success:4,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"10_de0b3942a7911f2c5f2f851663f6387d",url:"com.philo.philo.google",title:"",channel:"vh1",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:8,success:8,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"4ba262a45b2d54059b7c10edb6aebba3",url:"151908",title:"vod",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_cooking_and_food,sp_documentary,sp_brand_safe,sp_curious_minds_silver_vl",total:1,success:1,matchedby:"C_ROKU",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"10_faf6e6a382a5a389ccde6448393dffd9",url:"196460",title:"",channel:"amcthrillers",region:"use-1",segment:"sp_movies_and_television,sp_science_fiction,sp_action_and_adventure_t2,sp_thriller,sp_movie_fans_silverpush_vl",total:3,success:3,matchedby:"G",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"5e3c8cb486e96850bcc49e7a_5e4f27539f21a9001a3664a7",url:"tv.pluto.android",title:"",channel:"",region:"use-1",segment:"sp_movies_and_television,sp_action_and_adventure_t2,sp_movies,sp_movie_fans_silverpush_vl,sp_event_seekers_silverpush_vl",total:14,success:14,matchedby:"C_PLUTO",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"690406b5b7382c6fd0078c18",url:"com.plexapp.android",title:"",channel:"",region:"use-1",segment:"",total:2,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"SH046705430000",url:"420455839",title:"",channel:"spectrum news",region:"use-1",segment:"sp_movies_and_television,sp_news_and_talk_shows,sp_news_viewers_silverpush_vl",total:3,success:3,matchedby:"CG",isbrandsafe:0,date:"2025-11-02"},
+    {contentid:"4_bed9f86de467dc261d350f9cbe32482e",url:"151908",title:"",channel:"FilmRise Classic TV",region:"use-1",segment:"sp_brand_safe,sp_pg_brandsafety,sp_brandsafe_med_low_no_vl,sp_brand_safe_silverpush",total:5,success:5,matchedby:"R",isbrandsafe:1,date:"2025-11-02"},
+    {contentid:"68fd6ce6c4d87db7f4373012",url:"B004Y1WCDE",title:"",channel:"Wendy Williams",region:"use-1",segment:"",total:1,success:0,matchedby:"",isbrandsafe:0,date:"2025-11-02"}
+  ];
+
+  const CTV_STATS = (function() {
+    const _addDays = (d, n) => { const dt = new Date(d); dt.setDate(dt.getDate() + n); return dt.toISOString().slice(0, 10); };
+    const maxDate = CTV_STATS_SEED.reduce((m, r) => r.date > m ? r.date : m, '0000-00-00');
+    const urls     = [...new Set(CTV_STATS_SEED.map(r => r.url))];
+    const channels = CTV_STATS_SEED.map(r => r.channel).filter(Boolean);
+    const segments = CTV_STATS_SEED.map(r => r.segment).filter(s => s && s.length > 5);
+    const matchers = CTV_STATS_SEED.filter(r => r.matchedby).map(r => r.matchedby);
+
+    const out = [...CTV_STATS_SEED];
+
+    for (let day = 1; day <= 13; day++) {
+      const date   = _addDays(maxDate, -day);
+      const count  = 22 + (day % 6) * 5;
+      // failure rate oscillates per day so trend charts show real variation
+      const fBase  = 0.13 + Math.sin(day * 0.85) * 0.08 + Math.cos(day * 0.45) * 0.05;
+
+      for (let j = 0; j < count; j++) {
+        const s   = day * 97 + j * 31;
+        const url = urls[s % urls.length];
+        const ch  = channels.length ? channels[(s * 7)  % channels.length] : '';
+        const seg = segments.length ? segments[(s * 11) % segments.length] : '';
+        const failed = ((s * 13) % 100) / 100 < fBase;
+        const mb  = failed ? '' : matchers[(s * 17) % matchers.length];
+        const tot = 1 + (s % 18);
+        const suc = failed ? 0 : tot;
+        const bs  = seg.includes('brand_safe') ? 1 : 0;
+        const cid = 'iris_' + ((day * 0xF00000 + j * 0x1111 + s % 0xFFF) >>> 0).toString(16).padStart(16, '0');
+        out.push({ contentid: cid, url, title: '', channel: ch, region: 'use-1', segment: seg, total: tot, success: suc, matchedby: mb, isbrandsafe: bs, date });
+      }
+    }
+
+    return out;
+  })();
+
+  const PLATFORM_URL_MAP = [
+    // Crave
+    {platform:"Crave",url:"B0789RWQK1"},{platform:"Crave",url:"ca.bellmedia.cravetv"},{platform:"Crave",url:"942568279"},{platform:"Crave",url:"650682"},{platform:"Crave",url:"3201506003488"},{platform:"Crave",url:"B07DPRZ7NH"},{platform:"Crave",url:"ca.ctv.ctvgo"},{platform:"Crave",url:"9nx1x6th2grt"},{platform:"Crave",url:"461749483"},{platform:"Crave",url:"3201506003486"},{platform:"Crave",url:"B09C929HZP"},{platform:"Crave",url:"com.vmediagroup.noovo"},{platform:"Crave",url:"9ndjsb7lp64d"},{platform:"Crave",url:"1476103084"},{platform:"Crave",url:"675097"},{platform:"Crave",url:"B0BJMLLVJ6"},
+    // Fawesome
+    {platform:"Fawesome",url:"120421"},{platform:"Fawesome",url:"B08WH4GB19"},{platform:"Fawesome",url:"B07PK46HNQ"},{platform:"Fawesome",url:"B0C624FGDD"},{platform:"Fawesome",url:"B07PLKTCVK"},{platform:"Fawesome",url:"B07MV91SZF"},{platform:"Fawesome",url:"B07W9JYQ53"},{platform:"Fawesome",url:"B08P5D6KS2"},{platform:"Fawesome",url:"77025"},{platform:"Fawesome",url:"619734"},{platform:"Fawesome",url:"111266"},{platform:"Fawesome",url:"B0BWF8Z1Y7"},{platform:"Fawesome",url:"B0CJJLXX8M"},{platform:"Fawesome",url:"B07W4GZFVN"},{platform:"Fawesome",url:"57896"},{platform:"Fawesome",url:"40031"},{platform:"Fawesome",url:"B07WLKRYC3"},{platform:"Fawesome",url:"96322"},{platform:"Fawesome",url:"B07WD2JF8S"},{platform:"Fawesome",url:"93243"},{platform:"Fawesome",url:"B08WJ2KD5V"},{platform:"Fawesome",url:"B08ZNMWRW7"},{platform:"Fawesome",url:"B00IWJ03H6"},{platform:"Fawesome",url:"1069420445"},{platform:"Fawesome",url:"75081"},{platform:"Fawesome",url:"688845"},{platform:"Fawesome",url:"51213"},{platform:"Fawesome",url:"B07W8FXWKK"},{platform:"Fawesome",url:"B00P2FQ9EY"},{platform:"Fawesome",url:"1063891742"},{platform:"Fawesome",url:"B0963TS8H7"},{platform:"Fawesome",url:"629930"},{platform:"Fawesome",url:"B00OYUM5FK"},{platform:"Fawesome",url:"600853"},{platform:"Fawesome",url:"B08P4C6L5W"},{platform:"Fawesome",url:"75080"},{platform:"Fawesome",url:"30966"},{platform:"Fawesome",url:"630734"},{platform:"Fawesome",url:"B08PFF99F2"},{platform:"Fawesome",url:"90751"},{platform:"Fawesome",url:"72891"},{platform:"Fawesome",url:"101042"},{platform:"Fawesome",url:"51209"},{platform:"Fawesome",url:"51207"},{platform:"Fawesome",url:"B08WHGQRJ8"},{platform:"Fawesome",url:"761972"},{platform:"Fawesome",url:"B076X8FKXP"},{platform:"Fawesome",url:"73347"},{platform:"Fawesome",url:"B014D6RXLU"},{platform:"Fawesome",url:"600844"},{platform:"Fawesome",url:"B07MV2NFRT"},{platform:"Fawesome",url:"524013816"},{platform:"Fawesome",url:"600843"},{platform:"Fawesome",url:"36949"},{platform:"Fawesome",url:"46267"},{platform:"Fawesome",url:"782375"},{platform:"Fawesome",url:"B08V5J5QQH"},{platform:"Fawesome",url:"B07TMNWPBP"},{platform:"Fawesome",url:"B095KSRMM1"},{platform:"Fawesome",url:"95420"},{platform:"Fawesome",url:"B07NZZW6LP"},{platform:"Fawesome",url:"B07W9K238B"},{platform:"Fawesome",url:"48626"},{platform:"Fawesome",url:"48103"},{platform:"Fawesome",url:"B0C2J7LP38"},{platform:"Fawesome",url:"83507"},{platform:"Fawesome",url:"46560"},{platform:"Fawesome",url:"60733"},{platform:"Fawesome",url:"60383"},{platform:"Fawesome",url:"57895"},{platform:"Fawesome",url:"51208"},{platform:"Fawesome",url:"51432"},{platform:"Fawesome",url:"80489"},{platform:"Fawesome",url:"B0C622XVQZ"},{platform:"Fawesome",url:"77007"},{platform:"Fawesome",url:"121363"},{platform:"Fawesome",url:"B0DPLDD6BQ"},{platform:"Fawesome",url:"42727"},{platform:"Fawesome",url:"600757"},{platform:"Fawesome",url:"458741"},{platform:"Fawesome",url:"57901"},{platform:"Fawesome",url:"85344"},{platform:"Fawesome",url:"38097"},{platform:"Fawesome",url:"B07MV261QJ"},{platform:"Fawesome",url:"608333"},{platform:"Fawesome",url:"34532"},{platform:"Fawesome",url:"773609"},{platform:"Fawesome",url:"B00P2FPV0C"},{platform:"Fawesome",url:"619716"},{platform:"Fawesome",url:"G20239015429"},{platform:"Fawesome",url:"38095"},{platform:"Fawesome",url:"621441"},{platform:"Fawesome",url:"B00G1YIN5S"},{platform:"Fawesome",url:"B07PK88DJJ"},{platform:"Fawesome",url:"B0C2H7GZ2V"},{platform:"Fawesome",url:"B07MV91F6J"},{platform:"Fawesome",url:"93242"},{platform:"Fawesome",url:"649726"},{platform:"Fawesome",url:"84461"},{platform:"Fawesome",url:"B08P5F3HP5"},{platform:"Fawesome",url:"38096"},{platform:"Fawesome",url:"121374"},{platform:"Fawesome",url:"48628"},{platform:"Fawesome",url:"B0DB6HYC3B"},{platform:"Fawesome",url:"com.future.moviesByFawesomeAndroidTV"},{platform:"Fawesome",url:"B00G23GRPQ"},{platform:"Fawesome",url:"623144"},{platform:"Fawesome",url:"713152"},{platform:"Fawesome",url:"95421"},{platform:"Fawesome",url:"85346"},{platform:"Fawesome",url:"623143"},{platform:"Fawesome",url:"51433"},{platform:"Fawesome",url:"b07wlkryc3"},{platform:"Fawesome",url:"b08znmwrw7"},{platform:"Fawesome",url:"com.roku.spaintravelbyfawesome.tv"},{platform:"Fawesome",url:"b0963ts8h7"},{platform:"Fawesome",url:"b07wd2jf8s"},{platform:"Fawesome",url:"DramaMovies"},{platform:"Fawesome",url:"com.future.FamilyMoviesbyFawesometv"},{platform:"Fawesome",url:"b08pff99f2"},{platform:"Fawesome",url:"b07pk46hnq"},{platform:"Fawesome",url:"b014d6rxlu"},{platform:"Fawesome",url:"b08v5j5qqh"},{platform:"Fawesome",url:"b07plktcvk"},{platform:"Fawesome",url:"b095ksrmm1"},{platform:"Fawesome",url:"tv.ifood"},{platform:"Fawesome",url:"b07nzzw6lp"},{platform:"Fawesome",url:"b0bwf8z1y7"},{platform:"Fawesome",url:"ThrillerMovies"},{platform:"Fawesome",url:"b08p4c6l5w"},{platform:"Fawesome",url:"com.roku.mexicotravelbytripsmart.tv"},{platform:"Fawesome",url:"tv.moviesbyfawesome"},{platform:"Fawesome",url:"b08wh4gb19"},{platform:"Fawesome",url:"ActionMovies"},{platform:"Fawesome",url:"b07mv2nfrt"},{platform:"Fawesome",url:"firetv.fawesome.tv"},{platform:"Fawesome",url:"lg.Fawesome"},{platform:"Fawesome",url:"b08wj2kd5v"},{platform:"Fawesome",url:"com.future.moviesbyfawesomeandroidtv"},{platform:"Fawesome",url:"b07w9jyq53"},{platform:"Fawesome",url:"b07mv261qj"},{platform:"Fawesome",url:"b08p5d6ks2"},{platform:"Fawesome",url:"b076x8fkxp"},{platform:"Fawesome",url:"b08p5f3hp5"},{platform:"Fawesome",url:"48630"},{platform:"Fawesome",url:"b07w4gzfvn"},
+    // Fubo
+    {platform:"Fubo",url:"43465"},{platform:"Fubo",url:"905401434"},{platform:"Fubo",url:"B019DCHDZK"},{platform:"Fubo",url:"G19068012619"},{platform:"Fubo",url:"fubo.firetv.screen"},{platform:"Fubo",url:"tv.fubo"},{platform:"Fubo",url:"vizio.own"},{platform:"Fubo",url:"com.fubotv.roku.investigationdiscovery"},{platform:"Fubo",url:"5030"},{platform:"Fubo",url:"com.fubotv.roku.fubosportsnetwork"},{platform:"Fubo",url:"com.fubo.firetv.screen"},{platform:"Fubo",url:"com.fubotv.roku.comedycentral"},{platform:"Fubo",url:"com.fubotv.firetv.investigationdiscovery"},{platform:"Fubo",url:"com.tubitv"},{platform:"Fubo",url:"vizio.fubo"},{platform:"Fubo",url:"b019dchdzk"},{platform:"Fubo",url:"com.fubotv.ctv.roku.pop"},{platform:"Fubo",url:"https://channelstore.roku.com/details/43465/fubotv"},{platform:"Fubo",url:"roku.popcornflix"},{platform:"Fubo",url:"tv.fubo.mobile"},{platform:"Fubo",url:"vizio.travel"},{platform:"Fubo",url:"com.fubotv.vix"},{platform:"Fubo",url:"com.fubotv.roku.hgtv"},{platform:"Fubo",url:"com.fubotv.roku.tlc"},{platform:"Fubo",url:"com.fubotv.roku.foodnetwork"},{platform:"Fubo",url:"com.fubotv.ctv.roku.bet"},{platform:"Fubo",url:"vizio.fubotv"},{platform:"Fubo",url:"com.fubotv.roku.espn"},{platform:"Fubo",url:"com.fubotv.ctv.roku.tastemade"},{platform:"Fubo",url:"IFC"},{platform:"Fubo",url:"com.fubotv.roku.msnbc"},{platform:"Fubo",url:"com.fubotv.roku.foxsports1"},{platform:"Fubo",url:"com.fubotv.ctv.roku.paramount.network"},
+    // JoyN
+    {platform:"JoyN",url:"B00XAF0UH0"},{platform:"JoyN",url:"at.zappn"},{platform:"JoyN",url:"B07KWXB6V3"},{platform:"JoyN",url:"826510222"},{platform:"JoyN",url:"de.prosiebensat1digital.seventv"},{platform:"JoyN",url:"1239405046"},{platform:"JoyN",url:"com.zappntv"},{platform:"JoyN",url:"joyn.panasonic"},{platform:"JoyN",url:"983161"},{platform:"JoyN",url:"joyn.sonyplaystation"},{platform:"JoyN",url:"joyn.vestel"},{platform:"JoyN",url:"joyn.sky"},{platform:"JoyN",url:"joyn.tivo"},{platform:"JoyN",url:"joyn.samsungsmarttv"},{platform:"JoyN",url:"1098"},{platform:"JoyN",url:"joyn.philips"},{platform:"JoyN",url:"joyn.netrange"},{platform:"JoyN",url:"Joyn.CTV"},
+    // Plex
+    {platform:"Plex",url:"383457673"},{platform:"Plex",url:"B004Y1WCDE"},{platform:"Plex",url:"588776"},{platform:"Plex",url:"G00002687241"},{platform:"Plex",url:"298343"},{platform:"Plex",url:"b004y1wcde"},{platform:"Plex",url:"com.plexapp.desktop"},{platform:"Plex",url:"com.plexapp.x1"},{platform:"Plex",url:"com.plexapp.ctv"},{platform:"Plex",url:"com.plexapp.android"},{platform:"Plex",url:"COM.PLEXAPP.CTV"},{platform:"Plex",url:"com.plexapp.plex"},{platform:"Plex",url:"com.plexapp"},
+    // Pluto
+    {platform:"Pluto",url:"G18229011675"},{platform:"Pluto",url:"B00KDSGIPK"},{platform:"Pluto",url:"74519"},{platform:"Pluto",url:"751712884"},{platform:"Pluto",url:"tv.pluto.web"},{platform:"Pluto",url:"tv.pluto.roku"},{platform:"Pluto",url:"vizio.plutotv"},{platform:"Pluto",url:"vizio.pluto"},{platform:"Pluto",url:"tv.pluto.shouttv"},{platform:"Pluto",url:"b00kdsgipk"},{platform:"Pluto",url:"tv.pluto.chromecast"},{platform:"Pluto",url:"tv.pluto"},{platform:"Pluto",url:"com.pluto.tv"},{platform:"Pluto",url:"tv.pluto.comcastx1"},{platform:"Pluto",url:"vevo.plutotv"},{platform:"Pluto",url:"tv.pluto.android"},
+    // Roku
+    {platform:"Roku",url:"151908"},{platform:"Roku",url:"b089qxrrhd"},{platform:"Roku",url:"com.roku.web.trc"},{platform:"Roku",url:"G18183011458"},{platform:"Roku",url:"com.roku.remote"},{platform:"Roku",url:"482066631"},
+    // SBS
+    {platform:"SBS",url:"com.sbs.ondemand.tv"},{platform:"SBS",url:"542090992"},{platform:"SBS",url:"com.sbs.ondemand.android"},{platform:"SBS",url:"au.com.sbs.ondemand"},
+    // SpectrumTV
+    {platform:"SpectrumTV",url:"23048"},{platform:"SpectrumTV",url:"com.TWCableTV"},{platform:"SpectrumTV",url:"420455839"},{platform:"SpectrumTV",url:"G00009313465"},{platform:"SpectrumTV",url:"com.spectrumtv"},
+    // Tubi
+    {platform:"Tubi",url:"B075NTHVJW"},{platform:"Tubi",url:"G15115002089"},{platform:"Tubi",url:"886445756"},{platform:"Tubi",url:"41468"},{platform:"Tubi",url:"roku.tubitv"},{platform:"Tubi",url:"amazon.tubitv"},{platform:"Tubi",url:"com.tubitv.chromecast"},{platform:"Tubi",url:"com.adrise.tubitv"},{platform:"Tubi",url:"b075nthvjw"},{platform:"Tubi",url:"tubitv.amazon"},{platform:"Tubi",url:"com.roku.tubi"},{platform:"Tubi",url:"tubitv.com"}
+  ];
+
+  /* ================================================================
+     SECTION 2 — HELPERS
+  ================================================================ */
+  const _platformMap = new Map(PLATFORM_URL_MAP.map(r => [r.url.toLowerCase(), r.platform]));
+
+  function getPlatformName(url) {
+    return _platformMap.get((url || '').toLowerCase()) || url || '—';
+  }
+
+  function getMatchType(matchedby) {
+    if (!matchedby) return 'unmatched';
+    if (matchedby.startsWith('C_') || matchedby === 'CG') return 'deep';
+    return 'shallow';
+  }
+
+  function getMaxDate(data) {
+    return data.reduce((max, r) => r.date > max ? r.date : max, '0000-00-00');
+  }
+
+  function addDays(dateStr, days) {
+    const d = new Date(dateStr);
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function filterByDate(data, filter) {
+    if (filter === 'all' || !data.length) return data;
+    const maxDate = getMaxDate(data);
+    const cutoff = filter === 'today' ? maxDate
+      : filter === '7d'  ? addDays(maxDate, -6)
+      : addDays(maxDate, -29);
+    return data.filter(r => r.date >= cutoff);
+  }
+
+  function fmt(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return String(n);
+  }
+
+  function pct(a, b) { return b === 0 ? 0 : Math.round((a / b) * 100); }
+
+  function destroyChart(key) {
+    if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+  }
+
+  /* ================================================================
+     SECTION 3 — STATE
+  ================================================================ */
+  const state = {
+    dateFilter: 'today',
+    locationFilter: 'all',
+    diagPlatform: 'all',
+    diagChannel: 'all',
+    diagStatus: 'all',
+    diagBrand: 'all',
+    rcaView: 'A'
+  };
+
+  const charts = {};
+
+  /* ================================================================
+     SECTION 4 — DATA FILTERING
+  ================================================================ */
+  function getBaseData() {
+    let d = filterByDate(CTV_STATS, state.dateFilter);
+    if (state.locationFilter !== 'all') d = d.filter(r => r.region === state.locationFilter);
+    return d;
+  }
+
+  function getDiagnoseData() {
+    let d = getBaseData();
+    if (state.diagPlatform !== 'all') d = d.filter(r => getPlatformName(r.url) === state.diagPlatform);
+    if (state.diagChannel  !== 'all') d = d.filter(r => r.channel === state.diagChannel);
+    if (state.diagStatus === 'failed')  d = d.filter(r => r.success === 0);
+    if (state.diagStatus === 'success') d = d.filter(r => r.success > 0);
+    if (state.diagBrand !== 'all') d = d.filter(r => String(r.isbrandsafe) === state.diagBrand);
+    return d;
+  }
+
+  // Trend data respects date, location, and platform — not channel/status/brand
+  function getTrendBaseData() {
+    let d = getBaseData();
+    if (state.diagPlatform !== 'all') d = d.filter(r => getPlatformName(r.url) === state.diagPlatform);
+    return d;
+  }
+
+  /* ================================================================
+     SECTION 5 — POPULATE FILTER DROPDOWNS
+  ================================================================ */
+  function populateLocationFilter(data) {
+    const sel = document.getElementById('filter-location');
+    const regions = [...new Set(data.map(r => r.region).filter(Boolean))].sort();
+    regions.forEach(reg => {
+      const opt = document.createElement('option');
+      opt.value = reg; opt.textContent = reg;
+      sel.appendChild(opt);
+    });
+  }
+
+  function populateDiagnoseFilters(data) {
+    const platforms = [...new Set(
+      data
+        .filter(r => _platformMap.has((r.url || '').toLowerCase()))
+        .map(r => getPlatformName(r.url))
+    )].sort();
+    const channels  = [...new Set(data.map(r => r.channel).filter(Boolean))].sort();
+    const pSel = document.getElementById('diag-platform');
+    const cSel = document.getElementById('diag-channel');
+    pSel.innerHTML = '<option value="all">All Platforms</option>';
+    cSel.innerHTML = '<option value="all">All Channels</option>';
+    platforms.forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; pSel.appendChild(o); });
+    channels.forEach(c  => { const o = document.createElement('option'); o.value = c; o.textContent = c; cSel.appendChild(o); });
+  }
+
+  /* ================================================================
+     SECTION 6 — OVERVIEW: KPI CARDS
+  ================================================================ */
+  function renderKPICards(data) {
+    const totalIDs    = data.length;
+    const totalReqs   = data.reduce((s, r) => s + r.total, 0);
+    const successRows = data.filter(r => r.success > 0).length;
+    const failedRows  = data.filter(r => r.success === 0).length;
+    const brandSafe   = data.filter(r => r.isbrandsafe === 1).length;
+
+    const successRate = pct(successRows, totalIDs);
+    const failureRate = 100 - successRate;
+    const brandPct    = pct(brandSafe, totalIDs);
+
+    const cards = [
+      { label: 'Total Content IDs', value: fmt(totalIDs), cls: '' },
+      { label: 'Total Requests',    value: fmt(totalReqs), cls: '' },
+      { label: 'Success Rate',      value: successRate + '%', cls: 'green' },
+      { label: 'Failure Rate',      value: failureRate + '%', cls: failureRate > 0 ? 'red' : 'green' },
+      { label: 'Failed Content IDs',value: fmt(failedRows), cls: failedRows > 0 ? 'red' : 'green' },
+      { label: 'Brand Safe',        value: brandPct + '%', cls: 'green' }
+    ];
+
+    document.getElementById('kpi-row').innerHTML = cards.map(c =>
+      `<div class="kpi-card">
+        <div class="kpi-card__label">${c.label}</div>
+        <div class="kpi-card__value ${c.cls}">${c.value}</div>
+      </div>`
+    ).join('');
+  }
+
+  /* ================================================================
+     CHART HELPERS
+  ================================================================ */
+
+  // Shared dark tooltip style used by all charts
+  const TOOLTIP = {
+    backgroundColor: 'rgba(28,28,30,0.93)',
+    titleColor: '#FFFFFF',
+    bodyColor: 'rgba(255,255,255,0.70)',
+    padding: { x: 13, y: 10 },
+    cornerRadius: 12,
+    boxPadding: 5,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+  };
+
+  // Horizontal gradient (left=solid, right=faded) for horizontal bar charts
+  function hGrad(ctx, chartArea, hex, alphaEnd = 0.72) {
+    if (!chartArea) return hex;
+    const g = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
+    g.addColorStop(0, hex);
+    g.addColorStop(1, hex + Math.round(alphaEnd * 255).toString(16).padStart(2, '0'));
+    return g;
+  }
+
+  // Vertical gradient (top=solid, bottom=faded) for vertical bar charts
+  function vGrad(ctx, chartArea, hex, alphaEnd = 0.72) {
+    if (!chartArea) return hex;
+    const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+    g.addColorStop(0, hex);
+    g.addColorStop(1, hex + Math.round(alphaEnd * 255).toString(16).padStart(2, '0'));
+    return g;
+  }
+
+  const LEGEND_LABELS = { color: '#86868B', font: { size: 12, family: "'DM Sans', sans-serif" }, padding: 16 };
+
+  // Shared axis style
+  const AXIS_X_CLEAN = {
+    grid: { color: 'rgba(0,0,0,0.06)', drawBorder: false },
+    border: { display: false },
+    ticks: { color: '#86868B' }
+  };
+  const AXIS_Y_CLEAN = {
+    grid: { display: false },
+    border: { display: false },
+    ticks: { color: '#86868B' }
+  };
+
+  /* ================================================================
+     SECTION 7 — OVERVIEW: CHARTS ROW 2
+  ================================================================ */
+  function renderFailuresByPlatform(data) {
+    const failed = data.filter(r => r.success === 0);
+    const counts = {};
+    failed.forEach(r => { const p = getPlatformName(r.url); counts[p] = (counts[p] || 0) + 1; });
+    const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,10);
+    destroyChart('failPlatform');
+    const ctx = document.getElementById('chart-failures-platform').getContext('2d');
+    charts.failPlatform = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: sorted.map(e => e[0]),
+        datasets: [{
+          label: 'Failed Content IDs',
+          data: sorted.map(e => e[1]),
+          backgroundColor: c => hGrad(ctx, c.chart.chartArea, '#FF3B30'),
+          borderRadius: 10,
+          borderSkipped: false,
+          maxBarThickness: 22
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false }, tooltip: TOOLTIP },
+        scales: { x: AXIS_X_CLEAN, y: AXIS_Y_CLEAN }
+      }
+    });
+  }
+
+  function renderMatchedByBreakdown(data) {
+    const deep      = data.filter(r => getMatchType(r.matchedby) === 'deep');
+    const shallow   = data.filter(r => getMatchType(r.matchedby) === 'shallow');
+    const unmatched = data.filter(r => getMatchType(r.matchedby) === 'unmatched');
+
+    function countByMatcher(rows) {
+      const m = {};
+      rows.forEach(r => { m[r.matchedby || '(empty)'] = (m[r.matchedby || '(empty)'] || 0) + 1; });
+      return Object.entries(m).sort((a,b) => b[1]-a[1])
+        .map(([k,v]) => `  ${k}: ${v}`).join('\n');
+    }
+    const details = [countByMatcher(deep), countByMatcher(shallow), countByMatcher(unmatched)];
+
+    destroyChart('matchedBy');
+    const ctx = document.getElementById('chart-matchedby').getContext('2d');
+    charts.matchedBy = new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: ['Deep Match (C_*, CG)', 'Shallow Match', 'Unmatched'],
+        datasets: [{
+          data: [deep.length, shallow.length, unmatched.length],
+          backgroundColor: ['#30D158', '#FF9F0A', '#FF3B30'],
+          borderWidth: 3,
+          borderColor: '#FFFFFF',
+          hoverOffset: 10
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { position: 'bottom', labels: LEGEND_LABELS },
+          tooltip: {
+            ...TOOLTIP,
+            callbacks: {
+              label: c => {
+                const total = c.dataset.data.reduce((a,b)=>a+b,0);
+                return ` ${c.label}: ${c.parsed} (${pct(c.parsed,total)}%)`;
+              },
+              afterLabel: c => details[c.dataIndex] || ''
+            }
+          }
+        }
+      }
+    });
+  }
+
+  /* ================================================================
+     SECTION 8 — OVERVIEW: CHARTS ROW 3
+  ================================================================ */
+  function renderTopFailingChannels(data) {
+    const failed = data.filter(r => r.success === 0 && r.channel);
+    const counts = {};
+    failed.forEach(r => { counts[r.channel] = (counts[r.channel] || 0) + 1; });
+    const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,10);
+    destroyChart('failChannels');
+    const ctx = document.getElementById('chart-failing-channels').getContext('2d');
+    charts.failChannels = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: sorted.map(e => e[0]),
+        datasets: [{
+          label: 'Failed',
+          data: sorted.map(e => e[1]),
+          backgroundColor: c => vGrad(ctx, c.chart.chartArea, '#FF3B30'),
+          borderRadius: 10,
+          borderSkipped: false,
+          maxBarThickness: 32
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false }, tooltip: TOOLTIP },
+        scales: {
+          x: { ...AXIS_Y_CLEAN, ticks: { ...AXIS_Y_CLEAN.ticks, maxRotation: 30, font: { size: 11 } } },
+          y: AXIS_X_CLEAN
+        }
+      }
+    });
+  }
+
+  function renderSegmentCoverage(data) {
+    const withSeg    = data.filter(r => r.segment && r.segment.trim()).length;
+    const withoutSeg = data.length - withSeg;
+    destroyChart('segCoverage');
+    const ctx = document.getElementById('chart-segment-coverage').getContext('2d');
+    charts.segCoverage = new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: ['Has Segments', 'No Segments'],
+        datasets: [{
+          data: [withSeg, withoutSeg],
+          backgroundColor: ['#30D158', '#FF3B30'],
+          borderWidth: 3,
+          borderColor: '#FFFFFF',
+          hoverOffset: 10
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { position: 'bottom', labels: LEGEND_LABELS },
+          tooltip: {
+            ...TOOLTIP,
+            callbacks: {
+              label: c => {
+                const total = c.dataset.data.reduce((a,b)=>a+b,0);
+                return ` ${c.label}: ${c.parsed} (${pct(c.parsed,total)}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  /* ================================================================
+     SECTION 9 — OVERVIEW: MATCH DEPTH (ROW 4)
+  ================================================================ */
+  function renderMatchDepthKPIs(data) {
+    const total     = data.length || 1;
+    const deep      = data.filter(r => getMatchType(r.matchedby) === 'deep').length;
+    const shallow   = data.filter(r => getMatchType(r.matchedby) === 'shallow').length;
+    const unmatched = data.filter(r => getMatchType(r.matchedby) === 'unmatched').length;
+    const cards = [
+      { label: 'Deep Match %',    value: pct(deep, total) + '%',      cls: 'green' },
+      { label: 'Shallow Match %', value: pct(shallow, total) + '%',   cls: '' },
+      { label: 'Unmatched %',     value: pct(unmatched, total) + '%', cls: unmatched > 0 ? 'red' : 'green' }
+    ];
+    document.getElementById('match-depth-kpis').innerHTML = cards.map(c =>
+      `<div class="kpi-card">
+        <div class="kpi-card__label">${c.label}</div>
+        <div class="kpi-card__value ${c.cls}">${c.value}</div>
+      </div>`
+    ).join('');
+  }
+
+  /* ── Platform Breakdown Modal ── */
+  function openPlatformModal(platformName, allData) {
+    const rows = allData.filter(r => getPlatformName(r.url) === platformName);
+    const total = rows.length;
+
+    const groups = { deep: [], shallow: [], unmatched: [] };
+    rows.forEach(r => groups[getMatchType(r.matchedby)].push(r));
+
+    document.getElementById('modal-platform-name').textContent = platformName;
+    document.getElementById('modal-platform-total').textContent =
+      `${total} content ID${total !== 1 ? 's' : ''} · Deep: ${groups.deep.length} · Shallow: ${groups.shallow.length} · Unmatched: ${groups.unmatched.length}`;
+
+    const tabDefs = [
+      { key: 'deep',      label: 'Deep Match',  cls: 'tab-deep',      rows: groups.deep },
+      { key: 'shallow',   label: 'Shallow Match', cls: 'tab-shallow',  rows: groups.shallow },
+      { key: 'unmatched', label: 'Unmatched',   cls: 'tab-unmatched', rows: groups.unmatched },
+    ];
+
+    const tabsEl = document.getElementById('modal-tabs');
+    const bodyEl = document.getElementById('modal-body');
+    tabsEl.innerHTML = '';
+    bodyEl.innerHTML = '';
+
+    tabDefs.forEach((t, i) => {
+      const pctVal = pct(t.rows.length, total);
+      const btn = document.createElement('button');
+      btn.className = `modal-tab-btn ${t.cls}${i === 0 ? ' active' : ''}`;
+      btn.dataset.pane = t.key;
+      btn.innerHTML = `${t.label}<span class="tab-pct">${pctVal}%</span>`;
+      btn.addEventListener('click', () => {
+        tabsEl.querySelectorAll('.modal-tab-btn').forEach(b => b.classList.remove('active'));
+        bodyEl.querySelectorAll('.modal-pane').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('modal-pane-' + t.key).classList.add('active');
+      });
+      tabsEl.appendChild(btn);
+
+      const pane = document.createElement('div');
+      pane.className = `modal-pane${i === 0 ? ' active' : ''}`;
+      pane.id = 'modal-pane-' + t.key;
+
+      if (!t.rows.length) {
+        pane.innerHTML = '<div class="modal-empty">No content IDs in this category.</div>';
+      } else {
+        const badgeCls = { deep: 'deep', shallow: 'shallow', unmatched: 'unmatched' }[t.key];
+        pane.innerHTML = `
+          <table class="modal-table">
+            <thead><tr>
+              <th>Content ID</th>
+              <th>URL</th>
+              <th>Matched By</th>
+              <th>Total</th>
+              <th>Success</th>
+            </tr></thead>
+            <tbody>
+              ${t.rows.map(r => `
+                <tr>
+                  <td><span class="mono" title="${r.contentid}">${r.contentid}</span></td>
+                  <td><span class="mono" title="${r.url}">${r.url}</span></td>
+                  <td><span class="matcher-badge ${badgeCls}">${r.matchedby || '—'}</span></td>
+                  <td>${r.total}</td>
+                  <td>${r.success}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`;
+      }
+      bodyEl.appendChild(pane);
+    });
+
+    document.getElementById('platform-modal-backdrop').classList.add('open');
+  }
+
+  function closePlatformModal() {
+    document.getElementById('platform-modal-backdrop').classList.remove('open');
+  }
+
+  function renderMatchDepthByPlatform(data) {
+    const byPlatform = {};
+    data.forEach(r => {
+      const p = getPlatformName(r.url);
+      if (!byPlatform[p]) byPlatform[p] = { deep: 0, shallow: 0, unmatched: 0, total: 0 };
+      byPlatform[p][getMatchType(r.matchedby)]++;
+      byPlatform[p].total++;
+    });
+    const sorted = Object.entries(byPlatform).sort((a,b) => b[1].total - a[1].total).slice(0,10);
+    const labels   = sorted.map(e => e[0]);
+    const deepD    = sorted.map(e => e[1].deep);
+    const shallowD = sorted.map(e => e[1].shallow);
+    const unmatchD = sorted.map(e => e[1].unmatched);
+    destroyChart('matchDepth');
+    const ctx = document.getElementById('chart-match-depth-platform').getContext('2d');
+    charts.matchDepth = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Deep (C_*, CG)', data: deepD,    backgroundColor: '#30D158', borderRadius: { topLeft: 6, bottomLeft: 6 },  borderSkipped: 'end',   maxBarThickness: 22 },
+          { label: 'Shallow',    data: shallowD, backgroundColor: '#FF9F0A', borderRadius: 0,                               borderSkipped: false,   maxBarThickness: 22 },
+          { label: 'Unmatched',  data: unmatchD, backgroundColor: '#FF3B30', borderRadius: { topRight: 6, bottomRight: 6 }, borderSkipped: 'start', maxBarThickness: 22 }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const platformName = labels[elements[0].index];
+          openPlatformModal(platformName, data);
+        },
+        onHover: (evt) => {
+          evt.native.target.style.cursor = evt.chart.getElementsAtEventForMode(evt.native, 'y', { intersect: false }, true).length ? 'pointer' : 'default';
+        },
+        scales: {
+          x: { stacked: true, ...AXIS_X_CLEAN },
+          y: { stacked: true, ...AXIS_Y_CLEAN }
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: LEGEND_LABELS },
+          tooltip: TOOLTIP
+        }
+      }
+    });
+  }
+
+  /* ================================================================
+     SECTION 10 — DIAGNOSE: RCA VIEWS (A / B / C)
+  ================================================================ */
+  function renderRCATable(data, containerEl) {
+    const el = containerEl || document.getElementById('rca-table');
+    if (!el) return;
+    const failed = data.filter(r => r.success === 0).sort((a,b) => b.total - a.total);
+    if (!failed.length) { el.innerHTML = '<div class="empty-state">No failures in current filter.</div>'; return; }
+
+    if (state.rcaView === 'A') el.innerHTML = rcaViewA(failed);
+    else if (state.rcaView === 'B') el.innerHTML = rcaViewB(failed);
+    else el.innerHTML = rcaViewC(failed);
+  }
+
+  /* View A — Priority Queue: ranked list of failed content IDs by total requests */
+  function rcaViewA(failed) {
+    const rows = failed.map((r, i) => {
+      const isTop = i < 3;
+      return `<tr${isTop ? ' style="background:rgba(255,59,48,0.03)"' : ''}>
+        <td style="font-weight:700;color:${isTop ? 'var(--danger)' : 'var(--text-secondary)'};width:40px">${i + 1}</td>
+        <td><div class="content-id" title="${r.contentid}">${r.contentid}</div></td>
+        <td>${getPlatformName(r.url)}</td>
+        <td>${r.channel || '—'}</td>
+        <td class="danger-val">${fmt(r.total)}</td>
+        <td>${r.matchedby || '—'}</td>
+        <td>${getRootCauseBadges(r)}</td>
+        ${isTop ? `<td><span class="badge badge--danger">Fix First</span></td>` : '<td></td>'}
+      </tr>`;
+    }).join('');
+    return `<table>
+      <thead><tr>
+        <th>#</th><th>Content ID</th><th>Platform</th><th>Channel</th>
+        <th>Requests at Risk</th><th>Matched By</th><th>Root Cause</th><th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  /* View B — By Platform: accordion per platform, first open by default, all independently openable */
+  function rcaViewB(failed) {
+    const byPlatform = {};
+    failed.forEach(r => {
+      const p = getPlatformName(r.url);
+      if (!byPlatform[p]) byPlatform[p] = { total: 0, rows: [] };
+      byPlatform[p].total += r.total;
+      byPlatform[p].rows.push(r);
+    });
+    const platforms = Object.entries(byPlatform).sort((a,b) => b[1].total - a[1].total);
+    if (!platforms.length) return '<div class="empty-state">No failed content IDs</div>';
+
+    const accordions = platforms.map(([platform, { total, rows }], idx) => {
+      const tableRows = rows.map(r => `<tr>
+        <td><div class="content-id" title="${r.contentid}">${r.contentid}</div></td>
+        <td>${r.channel || '—'}</td>
+        <td class="danger-val">${fmt(r.total)}</td>
+        <td>${r.matchedby || '—'}</td>
+        <td>${getRootCauseBadges(r)}</td>
+      </tr>`).join('');
+      return `<details class="rca-acc-item" ${idx === 0 ? 'open' : ''}>
+        <summary class="rca-acc-summary">
+          <span style="font-weight:700;font-size:13px;color:var(--text-primary)">${platform}</span>
+          <span class="badge badge--danger" style="margin-left:8px">${rows.length} failed</span>
+          <span style="color:var(--text-secondary);font-size:11.5px;margin-left:8px;font-family:var(--font-mono)">${fmt(total)} at risk</span>
+          <span class="rca-acc-chevron">▶</span>
+        </summary>
+        <div class="rca-acc-content">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+            <thead><tr>
+              <th style="padding:8px 14px;background:#F5F5F7;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-secondary);border-bottom:1px solid var(--border)">Content ID</th>
+              <th style="padding:8px 14px;background:#F5F5F7;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-secondary);border-bottom:1px solid var(--border)">Channel</th>
+              <th style="padding:8px 14px;background:#F5F5F7;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-secondary);border-bottom:1px solid var(--border)">Requests at Risk</th>
+              <th style="padding:8px 14px;background:#F5F5F7;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-secondary);border-bottom:1px solid var(--border)">Matched By</th>
+              <th style="padding:8px 14px;background:#F5F5F7;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-secondary);border-bottom:1px solid var(--border)">Root Cause</th>
+            </tr></thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+      </details>`;
+    }).join('');
+
+    return `<div class="rca-accordion">${accordions}</div>`;
+  }
+
+  /* View C — Summary KPIs + Priority List */
+  function rcaViewC(failed) {
+    const totalReqs = failed.reduce((s, r) => s + r.total, 0);
+    const platformCounts = {};
+    failed.forEach(r => { const p = getPlatformName(r.url); platformCounts[p] = (platformCounts[p] || 0) + r.total; });
+    const topPlatform = Object.entries(platformCounts).sort((a,b) => b[1]-a[1])[0]?.[0] || '—';
+
+    const kpis = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:16px 16px 0">
+        <div class="kpi-card" style="padding:16px 18px">
+          <div class="kpi-card__label">Failed Content IDs</div>
+          <div class="kpi-card__value red">${failed.length}</div>
+        </div>
+        <div class="kpi-card" style="padding:16px 18px">
+          <div class="kpi-card__label">Total Requests at Risk</div>
+          <div class="kpi-card__value red">${fmt(totalReqs)}</div>
+        </div>
+        <div class="kpi-card" style="padding:16px 18px">
+          <div class="kpi-card__label">Most Affected Platform</div>
+          <div class="kpi-card__value" style="font-size:18px;letter-spacing:-0.01em">${topPlatform}</div>
+        </div>
+      </div>`;
+
+    const rows = failed.slice(0, 15).map((r, i) => `<tr>
+      <td style="font-weight:700;color:var(--text-secondary);width:40px">${i + 1}</td>
+      <td><div class="content-id" title="${r.contentid}">${r.contentid}</div></td>
+      <td>${getPlatformName(r.url)}</td>
+      <td class="danger-val">${fmt(r.total)}</td>
+      <td>${r.matchedby || '—'}</td>
+      <td>${r.isbrandsafe ? '<span class="badge badge--success">Yes</span>' : '<span class="badge badge--gray">No</span>'}</td>
+      <td>${getRootCauseBadges(r)}</td>
+    </tr>`).join('');
+
+    const table = `<div style="padding:14px 0 0">
+      <table>
+        <thead><tr><th>#</th><th>Content ID</th><th>Platform</th><th>Requests at Risk</th><th>Matched By</th><th>Brand Safe</th><th>Root Cause</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+
+    return kpis + table;
+  }
+
+  /* ================================================================
+     SECTION 10b — DIAGNOSE: TREND DATA + LAYOUT BUILDERS
+  ================================================================ */
+
+  function generateTrendData(data) {
+    // Use full dataset only for maxDate so chart window is always anchored to latest data
+    const maxDate = getMaxDate(CTV_STATS);
+    const failedCount = data.filter(r => r.success === 0).length;
+    const baseRate = failedCount / Math.max(data.length, 1);
+
+    // Top 5 platforms by total rows within filtered data
+    const byPlatform = {};
+    data.forEach(r => {
+      const p = getPlatformName(r.url);
+      if (!byPlatform[p]) byPlatform[p] = { failed: 0, total: 0 };
+      byPlatform[p].total++;
+      if (r.success === 0) byPlatform[p].failed++;
+    });
+    const topPlatforms = Object.entries(byPlatform)
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 5)
+      .map(e => ({ name: e[0], baseRate: e[1].failed / Math.max(e[1].total, 1) }));
+
+    const isToday = state.dateFilter === 'today';
+    const numDays = isToday ? 24
+      : state.dateFilter === '7d'  ? 7
+      : state.dateFilter === '30d' ? 30 : 14;
+    const days = [];
+    for (let i = numDays - 1; i >= 0; i--) {
+      const date = isToday ? maxDate : addDays(maxDate, -i);
+      const label = isToday ? (numDays - 1 - i) + ':00' : null;
+      const f1 = Math.sin(i * 0.7 + 1.2);
+      const f2 = Math.cos(i * 0.4 + 0.5);
+      const variance = f1 * 0.05 + f2 * 0.03;
+      const failureRate = Math.max(0.05, Math.min(0.55, baseRate + variance));
+      const totalRows = Math.round(Math.max(data.length, 1) * (0.9 + Math.abs(f1) * 0.2));
+      const failedRows = Math.round(totalRows * failureRate);
+      const newFailed = Math.round(failedRows * Math.max(0.2, 0.4 - (numDays - 1 - i) * 0.01));
+      const recurringFailed = failedRows - newFailed;
+
+      const progress = numDays > 1 ? (numDays - 1 - i) / (numDays - 1) : 1; // 0=oldest, 1=most recent
+      const platformRates = {};
+      topPlatforms.forEach(({ name, baseRate: pBase }, pidx) => {
+        const pf = Math.sin(i * 0.9 + name.charCodeAt(0) * 0.1) * 0.04;
+        // platforms 1 and 3 improve over the window, others worsen slightly
+        const trendDir = (pidx === 1 || pidx === 3) ? -1 : 1;
+        const trend = trendDir * progress * 0.13;
+        platformRates[name] = Math.round(Math.max(0, Math.min(1, pBase + pf + trend)) * 100);
+      });
+
+      days.push({ date, label, failureRate: Math.round(failureRate * 100), failedRows, newFailed, recurringFailed, platformRates });
+    }
+
+    return { days, topPlatforms: topPlatforms.map(p => p.name), numDays, isToday };
+  }
+
+  function buildRCAToggleHTML() {
+    return `<div class="tab-list rca-view-toggle">
+      <button class="tab-btn${state.rcaView==='A'?' active':''}" data-view="A">Priority</button>
+      <button class="tab-btn${state.rcaView==='B'?' active':''}" data-view="B">By Platform</button>
+      <button class="tab-btn${state.rcaView==='C'?' active':''}" data-view="C">Summary</button>
+    </div>`;
+  }
+
+  function trendWindowLabel() {
+    if (state.dateFilter === 'today') return 'Today — Hourly Breakdown';
+    if (state.dateFilter === '7d')    return 'Last 7 Days';
+    if (state.dateFilter === '30d')   return 'Last 30 Days';
+    return 'All Time';
+  }
+
+  function trendDateLabel(dateStr, idx, numDays) {
+    if (numDays === 1) return 'Today';
+    const d = new Date(dateStr + 'T00:00:00');
+    if (numDays <= 7) return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function trendChartTitles() {
+    const p = state.diagPlatform !== 'all' ? state.diagPlatform : null;
+    const scope = p ? ` — ${p}` : '';
+    return {
+      rate:      `Failure Rate (%)${scope}`,
+      newrec:    `New vs Recurring Failures${scope}`,
+      platforms: p ? `${p} — Failure Rate (%)` : 'Top 5 Platform Failure Rates (%)'
+    };
+  }
+
+  function buildDiagnoseLayout() {
+    const t = trendChartTitles();
+    return `
+      <h2 class="section-title" style="margin-top:0;margin-bottom:14px">Failure Trends — ${trendWindowLabel()}</h2>
+      <div class="chart-row">
+        <div class="chart-card"><h3>${t.rate}</h3><canvas id="diag-chart-rate" style="max-height:200px"></canvas></div>
+        <div class="chart-card"><h3>${t.newrec}</h3><canvas id="diag-chart-newrec" style="max-height:200px"></canvas></div>
+      </div>
+      <div class="chart-row" style="margin-bottom:24px">
+        <div class="chart-card chart-card--full"><h3>${t.platforms}</h3><canvas id="diag-chart-platforms" style="max-height:200px"></canvas></div>
+      </div>
+      <div class="sparklines-section">
+        <h2 class="section-title">Platform Failure Sparklines</h2>
+        <div class="table-wrap"><div id="diag-sparklines"></div></div>
+      </div>
+      <div class="rca-header">
+        <h2 class="section-title" style="margin:0">Failure Priority Queue</h2>
+        ${buildRCAToggleHTML()}
+      </div>
+      <div class="rca-card"><div id="rca-table"></div></div>`;
+  }
+
+  function renderTrendCharts(trendData) {
+    const { days, topPlatforms, numDays, isToday } = trendData;
+    const labels = days.map((d, i) => d.label || trendDateLabel(d.date, i, numDays));
+
+    destroyChart('diagRate');
+    const c1 = document.getElementById('diag-chart-rate');
+    if (c1) {
+      charts.diagRate = new Chart(c1.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{ label: 'Failure Rate %', data: days.map(d => d.failureRate),
+            borderColor: '#FF3B30', backgroundColor: 'rgba(255,59,48,0.08)',
+            fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#FF3B30', borderWidth: 2 }]
+        },
+        options: {
+          plugins: { legend: { display: false }, tooltip: TOOLTIP },
+          scales: {
+            x: AXIS_Y_CLEAN,
+            y: { ...AXIS_X_CLEAN, min: 0, ticks: { ...AXIS_X_CLEAN.ticks, callback: v => v + '%' } }
+          }
+        }
+      });
+    }
+
+    destroyChart('diagNewRec');
+    const c2 = document.getElementById('diag-chart-newrec');
+    if (c2) {
+      const pr = numDays <= 7 ? 3 : 0;
+      charts.diagNewRec = new Chart(c2.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Recurring', data: days.map(d => d.recurringFailed),
+              fill: 'origin', borderColor: '#FF9F0A', backgroundColor: 'rgba(255,159,10,0.12)',
+              tension: 0.4, borderWidth: 2, pointRadius: pr, pointBackgroundColor: '#FF9F0A' },
+            { label: 'New Failures', data: days.map(d => d.newFailed),
+              fill: 'origin', borderColor: '#FF3B30', backgroundColor: 'rgba(255,59,48,0.10)',
+              tension: 0.4, borderWidth: 2, pointRadius: pr, pointBackgroundColor: '#FF3B30' }
+          ]
+        },
+        options: {
+          plugins: { legend: { position: 'bottom', labels: LEGEND_LABELS }, tooltip: { ...TOOLTIP, mode: 'index', intersect: false } },
+          scales: {
+            x: AXIS_Y_CLEAN,
+            y: { ...AXIS_X_CLEAN, min: 0 }
+          }
+        }
+      });
+    }
+
+    destroyChart('diagPlatforms');
+    const c3 = document.getElementById('diag-chart-platforms');
+    if (c3) {
+      const colors = ['#0071E3', '#30D158', '#FF9F0A', '#FF3B30', '#AF52DE'];
+      charts.diagPlatforms = new Chart(c3.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: topPlatforms.map((p, i) => ({
+            label: p,
+            data: days.map(d => d.platformRates[p] || 0),
+            borderColor: colors[i % colors.length],
+            backgroundColor: 'transparent',
+            tension: 0.4, pointRadius: 2, borderWidth: 2
+          }))
+        },
+        options: {
+          plugins: { legend: { position: 'bottom', labels: LEGEND_LABELS }, tooltip: TOOLTIP },
+          scales: {
+            x: AXIS_Y_CLEAN,
+            y: { ...AXIS_X_CLEAN, min: 0, ticks: { ...AXIS_X_CLEAN.ticks, callback: v => v + '%' } }
+          }
+        }
+      });
+    }
+  }
+
+  function buildSparkSVG(values, color) {
+    const w = 130, h = 38, pad = 3;
+    const max = Math.max(...values, 1);
+    const min = Math.min(...values);
+    const range = max - min || 1;
+    const coords = values.map((v, i) => {
+      const x = pad + (i / (values.length - 1)) * (w - pad * 2);
+      const y = pad + (1 - (v - min) / range) * (h - pad * 2 - 4);
+      return { x, y };
+    });
+    // Cubic bezier smooth path
+    function smooth(pts) {
+      if (pts.length < 2) return `M${pts[0].x},${pts[0].y}`;
+      let d = `M${pts[0].x},${pts[0].y}`;
+      for (let i = 1; i < pts.length; i++) {
+        const cp = (pts[i].x - pts[i-1].x) * 0.4;
+        d += ` C${pts[i-1].x + cp},${pts[i-1].y} ${pts[i].x - cp},${pts[i].y} ${pts[i].x},${pts[i].y}`;
+      }
+      return d;
+    }
+    const linePath = smooth(coords);
+    const last = coords[coords.length - 1];
+    const first = coords[0];
+    const areaPath = linePath + ` L${last.x},${h} L${first.x},${h} Z`;
+    const gradId = 'sg' + color.replace('#','');
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${color}" stop-opacity="0.18"/>
+          <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d="${areaPath}" fill="url(#${gradId})"/>
+      <path d="${linePath}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${last.x}" cy="${last.y}" r="3" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+    </svg>`;
+  }
+
+  function renderSparklineTable(trendData) {
+    const { days, topPlatforms } = trendData;
+    const el = document.getElementById('diag-sparklines');
+    if (!el) return;
+    if (!topPlatforms.length) { el.innerHTML = '<div class="empty-state">No platform data</div>'; return; }
+    const colors = ['#0071E3', '#30D158', '#FF9F0A', '#FF3B30', '#AF52DE'];
+    const rows = topPlatforms.map((p, i) => {
+      const vals = days.map(d => d.platformRates[p] || 0);
+      const current = vals[vals.length - 1];
+      const prev = vals[0];
+      const delta = current - prev;
+      const rateColor = current >= 60 ? '#FF3B30' : current >= 30 ? '#FF9F0A' : '#30D158';
+      const rateBg    = current >= 60 ? 'rgba(255,59,48,0.08)' : current >= 30 ? 'rgba(255,159,10,0.09)' : 'rgba(48,209,88,0.09)';
+      const deltaColor = delta > 0 ? '#FF3B30' : '#30D158';
+      const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+      const deltaStr = (delta > 0 ? '+' : '') + delta + '%';
+      const svg = buildSparkSVG(vals, colors[i % colors.length]);
+      return `<tr>
+        <td><span class="platform-name">${p}</span></td>
+        <td style="min-width:110px">
+          <div style="display:inline-flex;flex-direction:column;gap:5px;width:100%">
+            <div style="display:flex;align-items:baseline;gap:6px">
+              <span style="font-family:var(--font-mono);font-size:17px;font-weight:700;color:${rateColor};letter-spacing:-0.03em">${current}%</span>
+              <span style="font-family:var(--font-mono);font-size:10.5px;font-weight:600;color:${deltaColor}">${arrow} ${deltaStr}</span>
+            </div>
+            <div style="height:4px;width:100%;max-width:80px;background:var(--border);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(current,100)}%;background:${rateColor};border-radius:4px;transition:width 0.4s ease"></div>
+            </div>
+          </div>
+        </td>
+        <td class="spark-cell">${svg}</td>
+      </tr>`;
+    }).join('');
+    el.innerHTML = `<table class="spark-table">
+      <thead><tr><th>Platform</th><th>Failure Rate</th><th>Trend</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  function wireRCAToggle() {
+    document.querySelectorAll('.rca-view-toggle .tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.rca-view-toggle .tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.rcaView = btn.dataset.view;
+        const el = document.getElementById('rca-table');
+        if (el) renderRCATable(getDiagnoseData(), el);
+      });
+    });
+  }
+
+
+/* ================================================================
+     SECTION 11 — DIAGNOSE: MAIN TABLE
+  ================================================================ */
+  function getRootCauseBadges(row) {
+    const badges = [];
+    if (!row.segment || !row.segment.trim()) badges.push('<span class="badge badge--blue">NO SEGMENTS</span>');
+    if (!row.matchedby) badges.push('<span class="badge badge--danger">UNMATCHED</span>');
+    return badges.join(' ') || '—';
+  }
+
+  function getFailureRateColor(rate) {
+    if (rate >= 1) return '#FF3B30';
+    if (rate > 0)  return '#FF9F0A';
+    return '#30D158';
+  }
+
+
+  /* ================================================================
+     SECTION 12 — RENDER ORCHESTRATION
+  ================================================================ */
+  function renderOverview(data) {
+    renderKPICards(data);
+    renderFailuresByPlatform(data);
+    renderMatchedByBreakdown(data);
+    renderTopFailingChannels(data);
+    renderSegmentCoverage(data);
+    renderMatchDepthKPIs(data);
+    renderMatchDepthByPlatform(data);
+  }
+
+  function renderDiagnose() {
+    const data = getDiagnoseData();
+    const trendData = generateTrendData(getTrendBaseData());
+
+    ['diagRate', 'diagNewRec', 'diagPlatforms'].forEach(k => destroyChart(k));
+
+    const container = document.getElementById('diag-layout-container');
+    container.innerHTML = buildDiagnoseLayout();
+    renderTrendCharts(trendData);
+    renderSparklineTable(trendData);
+    renderRCATable(data);
+    wireRCAToggle();
+  }
+
+  function render() {
+    const base = getBaseData();
+    renderOverview(base);
+    if (document.getElementById('tab-diagnose').classList.contains('active')) {
+      renderDiagnose();
+    }
+  }
+
+  /* ================================================================
+     SECTION 13 — EVENT WIRING + INIT
+  ================================================================ */
+  function init() {
+    populateLocationFilter(CTV_STATS);
+    populateDiagnoseFilters(CTV_STATS);
+
+    // Tab switching — lazy-render diagnose charts when tab becomes visible
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        if (btn.dataset.tab === 'diagnose') renderDiagnose();
+      });
+    });
+
+    // Global filters
+    document.getElementById('filter-date').addEventListener('change', e => {
+      state.dateFilter = e.target.value;
+      state.diagPlatform = 'all';
+      state.diagChannel = 'all';
+      populateDiagnoseFilters(getBaseData());
+      render();
+    });
+    document.getElementById('filter-location').addEventListener('change', e => {
+      state.locationFilter = e.target.value;
+      state.diagPlatform = 'all';
+      state.diagChannel = 'all';
+      populateDiagnoseFilters(getBaseData());
+      render();
+    });
+
+    // Diagnose filters
+    document.getElementById('diag-platform').addEventListener('change', e => { state.diagPlatform = e.target.value; renderDiagnose(); });
+    document.getElementById('diag-channel').addEventListener('change',  e => { state.diagChannel  = e.target.value; renderDiagnose(); });
+    document.getElementById('diag-status').addEventListener('change',   e => { state.diagStatus   = e.target.value; renderDiagnose(); });
+    document.getElementById('diag-brand').addEventListener('change',    e => { state.diagBrand    = e.target.value; renderDiagnose(); });
+
+    document.getElementById('modal-close-btn').addEventListener('click', closePlatformModal);
+    document.getElementById('platform-modal-backdrop').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closePlatformModal();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closePlatformModal(); });
+
+    render();
+  }
+
+  // Global Chart.js defaults — match Apple design system
+  Chart.defaults.font.family = "'DM Sans', sans-serif";
+  Chart.defaults.font.size   = 12;
+  Chart.defaults.color       = '#86868B';
+  Chart.defaults.plugins.legend.labels.usePointStyle = true;
+  Chart.defaults.plugins.legend.labels.pointStyleWidth = 8;
+
+  init();
+  </script>
+</body>
+</html>
