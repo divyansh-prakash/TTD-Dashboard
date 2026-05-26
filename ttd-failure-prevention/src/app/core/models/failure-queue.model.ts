@@ -1,4 +1,5 @@
 export interface FailedRow {
+  id: string;
   contentId: string;
   bundleId: string;
   channel: string;
@@ -8,17 +9,36 @@ export interface FailedRow {
   rootCauses: string[];
 }
 
-export interface PlatformGroup {
-  name: string;
+export interface UrlSummary {
+  bundleId: string;
+  totalRequestsAtRisk: number;
+  hitCount: number;
+}
+
+export interface MatchedByGroup {
+  matchedBy: string;
   failedCount: number;
   totalRequestsAtRisk: number;
   rows: FailedRow[];
   expanded?: boolean;
 }
 
+export interface PlatformGroup {
+  name: string;
+  failedCount: number;
+  totalRequestsAtRisk: number;
+  rows: FailedRow[];
+  urlSummary?: UrlSummary[];
+  matchedByGroups?: MatchedByGroup[];
+  expanded?: boolean;
+  othersTab?: 'content' | 'urls';
+  detailLoaded?: boolean;
+  detailLoading?: boolean;
+}
+
 export interface ByPlatformResponse {
   platforms: PlatformGroup[];
-  meta: { dateFrom: string; dateTo: string; rowCount: number };
+  meta: { dateFrom: string; dateTo: string; rowCount: number; total: number; offset: number; limit: number };
 }
 
 export interface TrendSeries { name: string; data: number[]; }

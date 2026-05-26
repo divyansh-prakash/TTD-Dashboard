@@ -1,0 +1,232 @@
+<!-- Summary Stats -->
+@if (!loading() && platforms().length > 0) {
+  <div class="summary-bar">
+    <div class="stat-chip">
+      <span class="stat-label">Platforms affected</span>
+      <span class="stat-value">{{ platforms().length }}</span>
+    </div>
+    <div class="stat-chip">
+      <span class="stat-label">Failed content IDs</span>
+      <span class="stat-value red">{{ formatNumber(totalFailed()) }}</span>
+    </div>
+    <div class="stat-chip">
+      <span class="stat-label">Total requests at risk</span>
+      <span class="stat-value red">{{ formatNumber(totalAtRisk()) }}</span>
+    </div>
+    @if (meta()) {
+      <span class="meta-range">{{ meta()!.dateFrom }} → {{ meta()!.dateTo }}</span>
+    }
+    <div class="expand-btns">
+      <button (click)="expandAll()">Expand all</button>
+      <button (click)="collapseAll()">Collapse all</button>
+    </div>
+  </div>
+}
+
+<!-- Loading -->
+@if (loading()) {
+  <div class="state-box">
+    <div class="spinner"></div>
+    <span>Loading failure data…</span>
+  </div>
+}
+
+<!-- Error -->
+@if (error()) {
+  <div class="state-box error">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span>{{ error() }}</span>
+    <button (click)="load()">Retry</button>
+  </div>
+}
+
+<!-- Empty -->
+@if (!loading() && !error() && platforms().length === 0) {
+  <div class="state-box">
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 9h.01M15 9h.01M8 14s1.5 2 4 2 4-2 4-2"/></svg>
+    <span>No failures found for the selected filters.</span>
+  </div>
+}
+
+<!-- Platform Cards -->
+@if (!loading() && !error()) {
+  <div class="platform-list">
+    @for (platform of platforms(); track platform.name) {
+      <div class="platform-card" [class.others-card]="platform.name === 'Others'">
+        <!-- Platform Header -->
+        <button class="platform-header" (click)="togglePlatform(platform)">
+          <div class="platform-left">
+            <div class="platform-icon" [class.others-icon]="platform.name === 'Others'">
+              @if (platform.name === 'Others') {
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              } @else {
+                {{ platform.name.charAt(0) }}
+              }
+            </div>
+            <div class="platform-info">
+              <span class="platform-name">{{ platform.name }}</span>
+              <span class="platform-meta">
+                @if (platform.name === 'Others') { Unrecognized bundle IDs · }
+                {{ platform.failedCount }} content IDs
+                <span class="weightage-pill">{{ formatPct(platform.totalRequestsAtRisk, totalAtRisk()) }} of total</span>
+              </span>
+            </div>
+          </div>
+          <div class="platform-right">
+            <div class="risk-badge">
+              <span class="risk-label">Requests at risk</span>
+              <span class="risk-value" [class.others-risk]="platform.name === 'Others'">{{ formatNumber(platform.totalRequestsAtRisk) }}</span>
+            </div>
+            <svg class="chevron" [class.open]="platform.expanded" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </button>
+
+        <!-- Expanded Content -->
+        @if (platform.expanded) {
+          <!-- Full spinner only when Phase 1 returned no group data (edge case) -->
+          @if (platform.detailLoading && !(platform.matchedByGroups?.length)) {
+            <div class="detail-loading">
+              <div class="spinner"></div>
+              <span>Loading detail…</span>
+            </div>
+          }
+          @if (platform.name === 'Others') {
+            <div class="others-tabs-bar">
+              <div class="others-tabs-segmented">
+                <button class="others-tab" [class.active]="platform.othersTab === 'content'" (click)="setOthersTab('content')">
+                  By Content ID
+                </button>
+                <button class="others-tab" [class.active]="platform.othersTab === 'urls'" (click)="setOthersTab('urls')">
+                  By URL
+                </button>
+              </div>
+              <span class="others-tab-hint">sorted by highest requests at risk</span>
+            </div>
+            @if (platform.othersTab === 'content') {
+              <div class="sub-accordion-list">
+                @for (group of platform.matchedByGroups || []; track group.matchedBy) {
+                  <div class="sub-accordion">
+                    <button class="sub-header" (click)="toggleMatchedByGroup(platform.name, group.matchedBy)">
+                      <div class="sub-left">
+                        <span class="sub-tag">{{ group.matchedBy }}</span>
+                        <span class="sub-count">{{ group.failedCount }} content IDs · <span class="weightage-pill">{{ formatPct(group.totalRequestsAtRisk, platform.totalRequestsAtRisk) }} of platform</span></span>
+                      </div>
+                      <div class="sub-right">
+                        <span class="mono red sub-risk">{{ formatNumber(group.totalRequestsAtRisk) }}</span>
+                        <svg class="chevron sm" [class.open]="group.expanded" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                      </div>
+                    </button>
+                    @if (group.expanded) {
+                      @if (platform.detailLoading) {
+                        <div class="detail-loading sub-rows-loading">
+                          <div class="spinner sm"></div>
+                          <span>Loading rows…</span>
+                        </div>
+                      } @else {
+                        <div class="sub-content">
+                          <table class="content-table sub-table">
+                            <thead><tr><th>Content ID</th><th>Bundle ID</th><th>Channel</th><th>Requests at Risk</th><th>Root Causes</th></tr></thead>
+                            <tbody>
+                              @for (row of group.rows; track row.id) {
+                                <tr>
+                                  <td class="mono cell-truncate" [title]="row.contentId">{{ row.contentId || '—' }}</td>
+                                  <td class="mono dim cell-truncate" [title]="row.bundleId">{{ row.bundleId || '—' }}</td>
+                                  <td>{{ row.channel || '—' }}</td>
+                                  <td class="mono red">{{ formatNumber(row.requestsAtRisk) }}</td>
+                                  <td>@for (c of row.rootCauses; track c) {<span class="badge" [class]="'badge-' + c.toLowerCase().replace(' ', '-')">{{ c }}</span>}</td>
+                                </tr>
+                              }
+                            </tbody>
+                          </table>
+                        </div>
+                      }
+                    }
+                  </div>
+                }
+              </div>
+            }
+            @if (platform.othersTab === 'urls') {
+              <div class="platform-content">
+                <table class="content-table others-table" style="min-width:560px">
+                  <colgroup>
+                    <col style="width:40px">
+                    <col>
+                    <col style="width:220px">
+                    <col style="width:90px">
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th class="rank-th">#</th>
+                      <th>Bundle ID / URL</th>
+                      <th>Requests at Risk</th>
+                      <th>Content IDs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (u of platform.urlSummary || []; track u.bundleId; let i = $index) {
+                      <tr>
+                        <td class="rank-num">{{ i + 1 }}</td>
+                        <td class="mono cell-truncate" [title]="u.bundleId">{{ u.bundleId || '—' }}</td>
+                        <td>
+                          <div class="bar-cell">
+                            <div class="req-bar">
+                              <div class="req-bar-fill" [style.width.%]="(u.totalRequestsAtRisk / ((platform.urlSummary)![0]?.totalRequestsAtRisk || 1)) * 100"></div>
+                            </div>
+                            <span class="mono red bar-val">{{ formatNumber(u.totalRequestsAtRisk) }}</span>
+                          </div>
+                        </td>
+                        <td class="mono dim">{{ u.hitCount }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          } @else {
+            <div class="sub-accordion-list">
+              @for (group of platform.matchedByGroups || []; track group.matchedBy) {
+                <div class="sub-accordion">
+                  <button class="sub-header" (click)="toggleMatchedByGroup(platform.name, group.matchedBy)">
+                    <div class="sub-left">
+                      <span class="sub-tag">{{ group.matchedBy }}</span>
+                      <span class="sub-count">{{ group.failedCount }} content IDs · <span class="weightage-pill">{{ formatPct(group.totalRequestsAtRisk, platform.totalRequestsAtRisk) }} of platform</span></span>
+                    </div>
+                    <div class="sub-right">
+                      <span class="mono red sub-risk">{{ formatNumber(group.totalRequestsAtRisk) }}</span>
+                      <svg class="chevron sm" [class.open]="group.expanded" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                  </button>
+                  @if (group.expanded) {
+                    @if (platform.detailLoading) {
+                      <div class="detail-loading sub-rows-loading">
+                        <div class="spinner sm"></div>
+                        <span>Loading rows…</span>
+                      </div>
+                    } @else {
+                      <div class="sub-content">
+                        <table class="content-table sub-table">
+                          <thead><tr><th>Content ID</th><th>Bundle ID</th><th>Channel</th><th>Requests at Risk</th><th>Root Causes</th></tr></thead>
+                          <tbody>
+                            @for (row of group.rows; track row.id) {
+                              <tr>
+                                <td class="mono cell-truncate" [title]="row.contentId">{{ row.contentId || '—' }}</td>
+                                <td class="mono dim cell-truncate" [title]="row.bundleId">{{ row.bundleId || '—' }}</td>
+                                <td>{{ row.channel || '—' }}</td>
+                                <td class="mono red">{{ formatNumber(row.requestsAtRisk) }}</td>
+                                <td>@for (c of row.rootCauses; track c) {<span class="badge" [class]="'badge-' + c.toLowerCase().replace(' ', '-')">{{ c }}</span>}</td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                      </div>
+                    }
+                  }
+                </div>
+              }
+            </div>
+          }
+        }
+      </div>
+    }
+  </div>
+}

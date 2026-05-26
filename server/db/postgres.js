@@ -12,10 +12,17 @@ const pool = new Pool({
 });
 
 async function queryPostgres(sql, params = []) {
+  const preview = sql.trim().replace(/\s+/g, ' ').slice(0, 120);
+  console.log(`[PG] query | ${preview}${params.length ? ` | params: ${JSON.stringify(params)}` : ''}`);
+  const t = Date.now();
   const client = await pool.connect();
   try {
     const result = await client.query(sql, params);
+    console.log(`[PG] done rows=${result.rows.length} (${Date.now() - t}ms)`);
     return result.rows;
+  } catch (err) {
+    console.error(`[PG] error after ${Date.now() - t}ms:`, err.message);
+    throw err;
   } finally {
     client.release();
   }

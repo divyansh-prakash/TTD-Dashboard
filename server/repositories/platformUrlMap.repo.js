@@ -11,9 +11,11 @@ async function getAllPlatformUrlMappings() {
 }
 
 async function getDistinctPlatforms() {
+  console.log('[REPO:platformUrlMap] getDistinctPlatforms');
   const rows = await queryPostgres(
     "SELECT DISTINCT platform FROM platform_url_mapping WHERE platform IS NOT NULL AND platform <> '' ORDER BY platform ASC"
   );
+  console.log(`[REPO:platformUrlMap] getDistinctPlatforms → ${rows.length} platforms`);
   return rows.map(r => r.platform);
 }
 

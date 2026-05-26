@@ -1,0 +1,12 @@
+<div class="chart-card">
+  <div class="chart-title">
+    Failed Requests Trend
+    @if (platformLabel) { <span class="chart-subtitle">— {{ platformLabel }}</span> }
+  </div>
+  <div class="chart-wrap">
+    <canvas #trendCanvas></canvas>
+    @if (loading()) {
+      <div class="chart-overlay"><div class="spinner"></div><span>Loading trend…</span></div>
+    }
+  </div>
+</div>

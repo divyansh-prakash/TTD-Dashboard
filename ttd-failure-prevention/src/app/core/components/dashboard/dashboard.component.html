@@ -1,0 +1,90 @@
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <div class="logo-icon">SP</div>
+        <div>
+          <div class="logo-text">Silverpush CTV</div>
+          <div class="logo-sub">Failure Prevention</div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="nav-section">
+      <div class="nav-label">Diagnostics</div>
+      <a class="nav-item" routerLink="/dashboard" routerLinkActive="active">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Failure Queue
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <span class="version-tag">v1.0</span>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <header class="top-bar">
+      <div class="top-bar-title">Failure Priority Queue</div>
+      <div class="top-bar-sub">By Platform</div>
+    </header>
+
+    <div class="content">
+      <div class="page">
+        <!-- Filters Bar -->
+        <div class="filters-bar">
+          <div class="filter-group">
+            <label>Date Range</label>
+            <select [(ngModel)]="dateRange">
+              @for (opt of dateRangeOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Platform</label>
+            <div class="multiselect" [class.open]="platformsOpen()">
+              <button class="multiselect-trigger" type="button" (click)="togglePlatformsDropdown()">
+                <span>{{ platformFilterLabel }}</span>
+                <svg class="ms-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              @if (platformsOpen()) {
+                <div class="ms-backdrop" (click)="closePlatformsDropdown()"></div>
+                <div class="ms-dropdown">
+                  <label class="ms-option">
+                    <input type="checkbox" [checked]="filters.platforms.length === 0" (change)="clearPlatformFilter()">
+                    <span>All Platforms</span>
+                  </label>
+                  @for (p of filterPlatforms(); track p) {
+                    <label class="ms-option">
+                      <input type="checkbox" [checked]="isPlatformSelected(p)" (change)="togglePlatformFilter(p)">
+                      <span>{{ p }}</span>
+                    </label>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>Brand Safe</label>
+            <select [(ngModel)]="filters.brandSafe">
+              <option value="all">All</option>
+              <option value="1">Safe</option>
+              <option value="0">Unsafe</option>
+            </select>
+          </div>
+          <button class="btn-apply" (click)="applyFilters()">Apply</button>
+          <button class="btn-reset" (click)="resetFilters()">Reset</button>
+        </div>
+
+        <!-- Trend Graph -->
+        <app-trend-graph [filters]="appliedFilters" />
+
+        <!-- Platform Queue -->
+        <app-platform-queue [filters]="appliedFilters" />
+      </div>
+    </div>
+  </main>
+</div>

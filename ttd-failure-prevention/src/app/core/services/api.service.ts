@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { ByPlatformResponse, FilterOptions, FailureQueueFilters, TrendResponse } from '../models/failure-queue.model';
+import { ByPlatformResponse, FilterOptions, FailureQueueFilters, TrendResponse, FailedRow } from '../models/failure-queue.model';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -9,7 +9,7 @@ export class ApiService {
 
   constructor(private http: HttpClient) {}
 
-  getByPlatform(filters: Partial<FailureQueueFilters>): Observable<ByPlatformResponse> {
+  getByPlatform(filters: Partial<FailureQueueFilters>, offset = 0, limit = 25): Observable<ByPlatformResponse> {
     let params = new HttpParams();
     if (filters.dateFrom) params = params.set('dateFrom', filters.dateFrom);
     if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
@@ -18,7 +18,17 @@ export class ApiService {
     }
     if (filters.channel   && filters.channel   !== 'all') params = params.set('channel',   filters.channel);
     if (filters.brandSafe && filters.brandSafe !== 'all') params = params.set('brandSafe', filters.brandSafe);
+    params = params.set('offset', String(offset));
+    params = params.set('limit', String(limit));
     return this.http.get<ByPlatformResponse>(`${this.base}/failure-queue/by-platform`, { params });
+  }
+
+  getPlatformDetail(platform: string, filters: Partial<FailureQueueFilters>): Observable<{ rows: FailedRow[] }> {
+    let params = new HttpParams().set('platform', platform);
+    if (filters.dateFrom) params = params.set('dateFrom', filters.dateFrom);
+    if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
+    if (filters.brandSafe && filters.brandSafe !== 'all') params = params.set('brandSafe', filters.brandSafe);
+    return this.http.get<{ rows: FailedRow[] }>(`${this.base}/failure-queue/by-platform/detail`, { params });
   }
 
   getFilterOptions(): Observable<FilterOptions> {
