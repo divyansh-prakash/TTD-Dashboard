@@ -229,4 +229,11 @@
       </div>
     }
   </div>
+  <div #scrollSentinel style="height:1px"></div>
+  @if (loadingMore()) {
+    <div class="load-more-spinner">
+      <div class="spinner"></div>
+      <span>Loading more…</span>
+    </div>
+  }
 }

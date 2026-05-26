@@ -1,6 +1,7 @@
 import {
-  Component, Input, OnInit, OnChanges, OnDestroy,
-  SimpleChanges, signal, computed,
+  AfterViewInit,
+  Component, ElementRef, Input, OnInit, OnChanges, OnDestroy,
+  SimpleChanges, ViewChild, signal, computed,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subject, takeUntil } from 'rxjs';
@@ -14,19 +15,32 @@ import { PlatformGroup, MatchedByGroup, FailedRow, FailureQueueFilters } from '.
   templateUrl: './platform-queue.component.html',
   styleUrl: './platform-queue.component.scss',
 })
-export class PlatformQueueComponent implements OnInit, OnChanges, OnDestroy {
+export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
   @Input() filters!: FailureQueueFilters;
 
-  loading   = signal(false);
-  error     = signal('');
-  platforms = signal<PlatformGroup[]>([]);
-  meta      = signal<{ dateFrom: string; dateTo: string; rowCount: number } | null>(null);
+  loading     = signal(false);
+  error       = signal('');
+  platforms   = signal<PlatformGroup[]>([]);
+  meta        = signal<{ dateFrom: string; dateTo: string; rowCount: number } | null>(null);
+  loadingMore = signal(false);
 
   totalAtRisk = computed(() => this.platforms().reduce((s, p) => s + p.totalRequestsAtRisk, 0));
   totalFailed = computed(() => this.platforms().reduce((s, p) => s + p.failedCount, 0));
 
-  private cancelTable$ = new Subject<void>();
-  private destroy$     = new Subject<void>();
+  private currentOffset = 0;
+  private total         = 0;
+  private cancelTable$  = new Subject<void>();
+  private destroy$      = new Subject<void>();
+  private observer?: IntersectionObserver;
+  private _sentinel?: ElementRef;
+
+  @ViewChild('scrollSentinel')
+  set sentinel(el: ElementRef | undefined) {
+    this._sentinel = el;
+    if (el?.nativeElement && this.observer) {
+      this.observer.observe(el.nativeElement);
+    }
+  }
 
   constructor(private api: ApiService) {}
 
@@ -40,7 +54,17 @@ export class PlatformQueueComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
+  ngAfterViewInit() {
+    if (typeof IntersectionObserver === 'undefined') return;
+    this.observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !this.loadingMore() && !this.loading()) {
+        if (this.platforms().length < this.total) this.loadMore();
+      }
+    }, { threshold: 0.1 });
+  }
+
   ngOnDestroy() {
+    this.observer?.disconnect();
     this.cancelTable$.complete();
     this.destroy$.complete();
   }
@@ -49,8 +73,10 @@ export class PlatformQueueComponent implements OnInit, OnChanges, OnDestroy {
     this.cancelTable$.next();
     this.loading.set(true);
     this.error.set('');
+    this.currentOffset = 0;
+    this.total = 0;
 
-    this.api.getByPlatform(this.filters)
+    this.api.getByPlatform(this.filters, 0, 25)
       .pipe(takeUntil(this.cancelTable$), takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
@@ -64,12 +90,34 @@ export class PlatformQueueComponent implements OnInit, OnChanges, OnDestroy {
             ...(p.name === 'Others' ? { othersTab: 'content' as const } : {}),
           })));
           this.meta.set(res.meta);
+          this.total = res.meta.total;
+          this.currentOffset = res.platforms.length;
           this.loading.set(false);
         },
         error: (err) => {
           this.error.set(err?.error?.error || 'Failed to load data');
           this.loading.set(false);
         },
+      });
+  }
+
+  private loadMore() {
+    this.loadingMore.set(true);
+    this.api.getByPlatform(this.filters, this.currentOffset, 25)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          const incoming = res.platforms.map(p => ({
+            ...p, rows: [], expanded: false, detailLoaded: false, detailLoading: false,
+            matchedByGroups: (p.matchedByGroups || []).map(g => ({ ...g, rows: [], expanded: false })),
+            ...(p.name === 'Others' ? { othersTab: 'content' as const } : {}),
+          }));
+          this.platforms.update(list => [...list, ...incoming]);
+          this.total = res.meta.total;
+          this.currentOffset += incoming.length;
+          this.loadingMore.set(false);
+        },
+        error: () => this.loadingMore.set(false),
       });
   }
 
