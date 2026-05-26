@@ -6,7 +6,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { Subject, takeUntil } from 'rxjs';
 import { ApiService } from '../../../services/api.service';
-import { PlatformGroup, MatchedByGroup, FailedRow, FailureQueueFilters } from '../../../models/failure-queue.model';
+import { PlatformGroup, MatchedByGroup, FailureQueueFilters } from '../../../models/failure-queue.model';
 
 @Component({
   selector: 'app-platform-queue',
@@ -18,11 +18,12 @@ import { PlatformGroup, MatchedByGroup, FailedRow, FailureQueueFilters } from '.
 export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
   @Input() filters!: FailureQueueFilters;
 
-  loading     = signal(false);
-  error       = signal('');
-  platforms   = signal<PlatformGroup[]>([]);
-  meta        = signal<{ dateFrom: string; dateTo: string; rowCount: number } | null>(null);
-  loadingMore = signal(false);
+  loading              = signal(false);
+  error                = signal('');
+  platforms            = signal<PlatformGroup[]>([]);
+  meta                 = signal<{ dateFrom: string; dateTo: string; rowCount: number } | null>(null);
+  loadingMore          = signal(false);
+  downloadingPlatforms = signal<Set<string>>(new Set());
 
   totalAtRisk = computed(() => this.platforms().reduce((s, p) => s + p.totalRequestsAtRisk, 0));
   totalFailed = computed(() => this.platforms().reduce((s, p) => s + p.failedCount, 0));
@@ -67,6 +68,31 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
     this.destroy$.complete();
   }
 
+  private initGroups(groups: MatchedByGroup[]): MatchedByGroup[] {
+    return (groups || []).map(g => ({
+      ...g,
+      rows: [],
+      expanded: false,
+      detailLoaded: false,
+      detailLoading: false,
+      detailLoadingMore: false,
+      detailOffset: 0,
+      detailHasMore: true,
+    }));
+  }
+
+  private initPlatform(p: PlatformGroup): PlatformGroup {
+    return {
+      ...p,
+      rows: [],
+      expanded: false,
+      detailLoaded: false,
+      detailLoading: false,
+      matchedByGroups: this.initGroups(p.matchedByGroups || []),
+      ...(p.name === 'Others' ? { othersTab: 'content' as const } : {}),
+    };
+  }
+
   private loadTable() {
     this.cancelTable$.next();
     this.loadingMore.set(false);
@@ -79,15 +105,7 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
       .pipe(takeUntil(this.cancelTable$), takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
-          this.platforms.set(res.platforms.map(p => ({
-            ...p,
-            rows: [],
-            expanded: false,
-            detailLoaded: false,
-            detailLoading: false,
-            matchedByGroups: (p.matchedByGroups || []).map(g => ({ ...g, rows: [], expanded: false })),
-            ...(p.name === 'Others' ? { othersTab: 'content' as const } : {}),
-          })));
+          this.platforms.set(res.platforms.map(p => this.initPlatform(p)));
           this.meta.set(res.meta);
           this.total = res.meta.total;
           this.currentOffset = res.platforms.length;
@@ -106,11 +124,7 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
       .pipe(takeUntil(this.cancelTable$), takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
-          const incoming = res.platforms.map(p => ({
-            ...p, rows: [], expanded: false, detailLoaded: false, detailLoading: false,
-            matchedByGroups: (p.matchedByGroups || []).map(g => ({ ...g, rows: [], expanded: false })),
-            ...(p.name === 'Others' ? { othersTab: 'content' as const } : {}),
-          }));
+          const incoming = res.platforms.map(p => this.initPlatform(p));
           this.platforms.update(list => [...list, ...incoming]);
           this.total = res.meta.total;
           this.currentOffset += incoming.length;
@@ -120,64 +134,68 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
       });
   }
 
-  private loadPlatformDetail(platformName: string) {
+  // Loads a page of content rows for a specific matchedBy group.
+  // offset=0 is the initial load; higher offsets append to existing rows.
+  private loadGroupDetail(platformName: string, matchedBy: string, offset: number) {
     this.platforms.update(list =>
-      list.map(p => p.name === platformName ? { ...p, detailLoading: true } : p)
+      list.map(p => p.name !== platformName ? p : {
+        ...p,
+        matchedByGroups: p.matchedByGroups?.map(g =>
+          g.matchedBy !== matchedBy ? g : {
+            ...g,
+            ...(offset === 0 ? { detailLoading: true } : { detailLoadingMore: true }),
+          }
+        ),
+      })
     );
 
-    this.api.getPlatformDetail(platformName, this.filters)
-      .pipe(takeUntil(this.destroy$))
+    this.api.getPlatformDetail(platformName, this.filters, matchedBy, offset)
+      .pipe(takeUntil(this.cancelTable$), takeUntil(this.destroy$))
       .subscribe({
-        next: ({ rows }) => {
+        next: ({ rows, meta }) => {
           const stamped = rows.map(r => ({ ...r, id: `${r.contentId}|${r.bundleId}|${r.channel}` }));
           this.platforms.update(list =>
             list.map(p => p.name !== platformName ? p : {
               ...p,
-              rows: stamped,
-              matchedByGroups: this.groupByMatchedBy(stamped),
-              detailLoaded: true,
-              detailLoading: false,
+              matchedByGroups: p.matchedByGroups?.map(g => {
+                if (g.matchedBy !== matchedBy) return g;
+                return {
+                  ...g,
+                  rows: offset === 0 ? stamped : [...(g.rows || []), ...stamped],
+                  detailLoaded: true,
+                  detailLoading: false,
+                  detailLoadingMore: false,
+                  detailOffset: offset + stamped.length,
+                  detailHasMore: meta.hasMore,
+                };
+              }),
             })
           );
         },
         error: () => {
           this.platforms.update(list =>
-            list.map(p => p.name === platformName ? { ...p, detailLoading: false } : p)
+            list.map(p => p.name !== platformName ? p : {
+              ...p,
+              matchedByGroups: p.matchedByGroups?.map(g =>
+                g.matchedBy !== matchedBy ? g : { ...g, detailLoading: false, detailLoadingMore: false }
+              ),
+            })
           );
         },
       });
   }
 
-  private groupByMatchedBy(rows: FailedRow[]): MatchedByGroup[] {
-    const map = new Map<string, MatchedByGroup>();
-    for (const row of rows) {
-      const key = (row.matchedBy || '').trim() || 'Unmatched';
-      if (!map.has(key)) {
-        map.set(key, { matchedBy: key, failedCount: 0, totalRequestsAtRisk: 0, rows: [], expanded: false });
-      }
-      const g = map.get(key)!;
-      g.failedCount++;
-      g.totalRequestsAtRisk += row.requestsAtRisk;
-      g.rows.push(row);
-    }
-    return Array.from(map.values()).sort((a, b) => {
-      if (a.matchedBy === 'Unmatched') return 1;
-      if (b.matchedBy === 'Unmatched') return -1;
-      return b.totalRequestsAtRisk - a.totalRequestsAtRisk;
-    });
-  }
-
   togglePlatform(platform: PlatformGroup) {
-    const opening = !platform.expanded;
     this.platforms.update(list =>
-      list.map(p => p.name === platform.name ? { ...p, expanded: opening } : p)
+      list.map(p => p.name === platform.name ? { ...p, expanded: !p.expanded } : p)
     );
-    if (opening && !platform.detailLoaded && !platform.detailLoading) {
-      this.loadPlatformDetail(platform.name);
-    }
   }
 
   toggleMatchedByGroup(platformName: string, matchedBy: string) {
+    const platform = this.platforms().find(p => p.name === platformName);
+    const group    = platform?.matchedByGroups?.find(g => g.matchedBy === matchedBy);
+    const opening  = !group?.expanded;
+
     this.platforms.update(list =>
       list.map(p => p.name !== platformName ? p : {
         ...p,
@@ -186,12 +204,47 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
         ),
       })
     );
+
+    if (opening && group && !group.detailLoaded && !group.detailLoading) {
+      this.loadGroupDetail(platformName, matchedBy, 0);
+    }
+  }
+
+  onGroupScroll(event: Event, platformName: string, matchedBy: string) {
+    const el = event.target as HTMLElement;
+    if (el.scrollTop + el.clientHeight < el.scrollHeight - 40) return;
+    const platform = this.platforms().find(p => p.name === platformName);
+    const group    = platform?.matchedByGroups?.find(g => g.matchedBy === matchedBy);
+    if (group?.detailHasMore && !group.detailLoadingMore && !group.detailLoading) {
+      this.loadGroupDetail(platformName, matchedBy, group.detailOffset ?? 0);
+    }
   }
 
   setOthersTab(tab: 'content' | 'urls') {
     this.platforms.update(list =>
       list.map(p => p.name === 'Others' ? { ...p, othersTab: tab } : p)
     );
+  }
+
+  downloadPlatform(platform: PlatformGroup, event: Event) {
+    event.stopPropagation();
+    if (this.downloadingPlatforms().has(platform.name)) return;
+    this.downloadingPlatforms.update(s => new Set([...s, platform.name]));
+
+    this.api.downloadPlatformCsv(platform.name, this.filters)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          const a   = document.createElement('a');
+          a.href     = url;
+          a.download = `${platform.name}-failed-content-ids-${this.filters.dateFrom}-${this.filters.dateTo}.csv`;
+          a.click();
+          URL.revokeObjectURL(url);
+          this.downloadingPlatforms.update(s => { const n = new Set(s); n.delete(platform.name); return n; });
+        },
+        error: () => this.downloadingPlatforms.update(s => { const n = new Set(s); n.delete(platform.name); return n; }),
+      });
   }
 
   expandAll()   { this.platforms.update(l => l.map(p => ({ ...p, expanded: true  }))); }
@@ -208,5 +261,23 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
   formatPct(part: number, total: number): string {
     if (!total) return '0%';
     return (part / total * 100).toFixed(1) + '%';
+  }
+
+  formatExact(n: number): string {
+    return n.toLocaleString('en-US');
+  }
+
+  totalHealthyServed(platform: PlatformGroup): number {
+    return (platform.healthyGroups || []).reduce((s, g) => s + g.totalRequestsServed, 0);
+  }
+
+  formatMatchedBy(matchedBy: string): string {
+    if (!matchedBy) return 'Unmatched';
+    if (matchedBy.startsWith('CG_')) return 'Content & Genre · ' + matchedBy.slice(3);
+    if (matchedBy.startsWith('C_'))  return 'Content ID · '      + matchedBy.slice(2);
+    if (matchedBy.startsWith('G_'))  return 'Genre · '           + matchedBy.slice(2);
+    if (matchedBy.startsWith('R_'))  return 'Rating · '          + matchedBy.slice(2);
+    if (matchedBy.startsWith('S_'))  return 'Segment · '         + matchedBy.slice(2);
+    return matchedBy;
   }
 }

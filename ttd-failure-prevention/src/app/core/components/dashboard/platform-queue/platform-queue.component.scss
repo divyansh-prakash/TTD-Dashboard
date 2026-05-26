@@ -1,3 +1,21 @@
+/* ─────────────────────────────────────────────────────────────
+   Column-alignment constants
+   Both .platform-header and .sub-header share the same
+   fixed column widths for [count] [pct] [req] [chevron].
+   The 1fr "name" column resolves to the same pixel value in
+   both rows because the total left offset is identical (64px).
+
+   Platform: padding-left 16px + icon-slot 48px = 64px
+   Sub:      padding-left 64px (= 16px outer + 48px indent)
+   ───────────────────────────────────────────────────────────── */
+$col-count-w : 110px;   // content-IDs column
+$col-pct-w   :  60px;   // percentage column
+$col-req-w   :  96px;   // requests-at-risk column
+$col-chev-w  :  20px;   // chevron column
+$col-gap     :  20px;   // gap between every column
+$row-h-pad   :  16px;   // left/right padding on rows
+$icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
+
 /* ── Summary Bar ── */
 .summary-bar {
   display: flex;
@@ -82,13 +100,11 @@
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin .7s linear infinite;
-
   &.sm { width: 12px; height: 12px; }
 }
-
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Platform Cards ── */
+/* ── Platform list ── */
 .platform-list {
   display: flex;
   flex-direction: column;
@@ -103,14 +119,17 @@
   box-shadow: var(--shadow);
 }
 
+/* ── Platform header row ─────────────────────────────────────
+   Grid: [ph-name-area 1fr] [count] [pct] [req] [chevron]
+   Left padding 16px; icon (36px) + gap (12px) sits inside 1fr.
+   ───────────────────────────────────────────────────────────── */
 .platform-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr $col-count-w $col-pct-w $col-req-w $col-chev-w;
+  column-gap: $col-gap;
   align-items: center;
-  justify-content: space-between;
   width: 100%;
-  padding: 14px 18px;
-  background: none;
-  border: none;
+  padding: 13px $row-h-pad;
   cursor: pointer;
   text-align: left;
   transition: background .15s;
@@ -118,13 +137,57 @@
   &:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
 }
 
-.platform-left {
+/* ── Download button — sits in ph-name-area, pushed right ── */
+.download-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color .15s, border-color .15s, background .15s;
+
+  &:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--green-light);
+  }
+
+  &.downloading {
+    opacity: .6;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .spinner {
+    width: 12px;
+    height: 12px;
+    border-width: 1.5px;
+  }
+}
+
+.ph-name-area {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+}
+
+.ph-name-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .platform-icon {
+  flex-shrink: 0;
   width: 36px; height: 36px;
   background: var(--accent-light);
   color: var(--accent);
@@ -133,165 +196,77 @@
   font-size: 16px; font-weight: 700;
 }
 
-.platform-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
 .platform-name {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.platform-meta {
-  font-size: 12px;
+.platform-sub {
+  font-size: 11px;
   color: var(--text-secondary);
 }
 
-.weightage-pill {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 1px 7px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 600;
-  background: color-mix(in srgb, var(--red) 10%, transparent);
-  color: var(--red);
-  vertical-align: middle;
-}
-
-.platform-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.risk-badge {
+/* ── Shared column cells (platform + sub rows) ── */
+.col-count {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 1px;
+  gap: 2px;
 }
 
-.risk-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  color: var(--text-secondary);
-}
-
-.risk-value {
-  font-size: 18px;
-  font-weight: 700;
+.col-num {
   font-family: var(--mono);
-  color: var(--red);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1;
 }
 
+.col-lbl {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.col-pct {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.col-req {
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--red);
+  text-align: right;
+  line-height: 1;
+}
+
+/* ── Chevron ── */
 .chevron {
   color: var(--text-secondary);
   transition: transform .2s;
   flex-shrink: 0;
-
+  justify-self: end;
   &.open { transform: rotate(180deg); }
-  &.sm { flex-shrink: 0; color: var(--text-secondary); transition: transform .2s; &.open { transform: rotate(180deg); } }
+  &.sm   { color: var(--text-secondary); transition: transform .2s; &.open { transform: rotate(180deg); } }
 }
 
-/* ── Detail loading state ── */
-.detail-loading {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 16px 20px;
-  border-top: 1px solid var(--border);
-  color: var(--text-secondary);
-  font-size: 13px;
-
-  .spinner { width: 16px; height: 16px; }
-
-  &.sub-rows-loading {
-    padding: 10px 20px 10px 32px;
-    border-top: none;
-    font-size: 12px;
-
-    .spinner { width: 12px; height: 12px; }
-  }
-}
-
-/* ── Sub-Accordions ── */
-.sub-accordion-list {
-  border-top: 1px solid var(--border);
-}
-
-.sub-accordion {
-  border-bottom: 1px solid var(--border);
-  &:last-child { border-bottom: none; }
-}
-
-.sub-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 10px 18px 10px 32px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  transition: background .15s;
-
-  &:hover { background: color-mix(in srgb, var(--accent) 3%, transparent); }
-}
-
-.sub-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.sub-tag {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: .03em;
-  text-transform: capitalize;
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  color: var(--accent);
-}
-
-.sub-count {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.sub-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.sub-risk {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.sub-content {
-  margin-left: 32px;
-  max-height: 280px;
-  overflow-y: auto;
-  overflow-x: auto;
-  background: color-mix(in srgb, var(--bg) 60%, transparent);
-}
-
-/* ── Others Card ── */
+/* ── Others card ── */
 .others-card { border-left: 3px solid var(--amber); }
 .others-icon { background: color-mix(in srgb, var(--amber) 14%, transparent) !important; color: var(--amber) !important; }
 .others-risk { color: var(--amber) !important; }
 
-/* ── Others Tabs ── */
+/* ── Others tabs ── */
 .others-tabs-bar {
   display: flex;
   align-items: center;
@@ -321,8 +296,7 @@
   border-radius: 4px;
   cursor: pointer;
   transition: background .15s, color .15s;
-
-  &:hover { color: var(--text-primary); }
+  &:hover  { color: var(--text-primary); }
   &.active { background: var(--surface); color: var(--amber); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 }
 
@@ -334,7 +308,224 @@
   opacity: .7;
 }
 
-/* ── Content Table ── */
+/* ── Detail loading ── */
+.detail-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 13px;
+
+  .spinner { width: 16px; height: 16px; }
+
+  &.sub-rows-loading {
+    padding: 10px 20px 10px ($row-h-pad + $icon-slot);
+    border-top: none;
+    font-size: 12px;
+    .spinner { width: 12px; height: 12px; }
+  }
+}
+
+/* ── Sub-accordion list ── */
+.sub-accordion-list {
+  border-top: 1px solid var(--border);
+  /* Background comes from .failing-zone / .healthy-zone — no fill here */
+  background: transparent;
+}
+
+.sub-accordion {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  &:last-child { border-bottom: none; }
+
+  // When expanded: elevate the header so it reads as a distinct toggle bar,
+  // not part of the content below it.
+  &.expanded {
+    border-left: 3px solid color-mix(in srgb, var(--red) 40%, transparent);
+    // Top separator ensures two adjacent open accordions never merge visually.
+    border-top: 2px solid var(--border);
+
+    &:first-child { border-top: none; }
+
+    .sub-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, .06);
+    }
+  }
+}
+
+/* ── Sub-accordion header row ──────────────────────────────────
+   Same grid columns as .platform-header.
+   padding-left = $row-h-pad + $icon-slot = 64px, matching the
+   pixel position where the platform name text begins, so the
+   tag and all data columns share the same vertical lines.
+   ───────────────────────────────────────────────────────────── */
+.sub-header {
+  display: grid;
+  grid-template-columns: 1fr $col-count-w $col-pct-w $col-req-w $col-chev-w;
+  column-gap: $col-gap;
+  align-items: center;
+  width: 100%;
+  padding: 9px $row-h-pad 9px ($row-h-pad + $icon-slot);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background .15s;
+
+  &:hover { background: color-mix(in srgb, var(--accent) 2%, transparent); }
+
+  /* Visually lighter than platform-level numbers */
+  .col-req { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+  .col-num  { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+  .col-pct  { font-size: 11px; }
+}
+
+/* Square label chip for a failing matchedBy category.
+   Red-tinted to signal "this is where failures come from". */
+.sub-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  border: 1px solid color-mix(in srgb, var(--red) 28%, transparent);
+  background: color-mix(in srgb, var(--red) 6%, transparent);
+  color: var(--red-dim);
+  white-space: nowrap;
+  align-self: center;
+  justify-self: start;
+}
+
+/* ── Zone-based contrast: Failing / Healthy ──────────────────────
+   Each zone gets its own ambient color temperature so the eye
+   reads the state instantly without needing to read labels.
+   Failure = faint warm red wash. Healthy = cool mint wash.
+   ───────────────────────────────────────────────────────────── */
+
+/* Shared zone label row — sits above each zone's rows */
+.zone-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px $row-h-pad 4px ($row-h-pad + $icon-slot);
+
+  span:last-child, & > span {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+  }
+}
+
+/* ── Failing zone ── */
+.failing-zone {
+  background: color-mix(in srgb, var(--red) 3%, var(--bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--red) 12%, transparent);
+}
+
+.failing-label {
+  border-bottom: 1px solid color-mix(in srgb, var(--red) 14%, transparent);
+
+  span { color: color-mix(in srgb, var(--red) 65%, var(--text-secondary)); }
+}
+
+/* Pulsing dot — signals an active problem state */
+.zone-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--red);
+  flex-shrink: 0;
+  animation: zone-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes zone-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1);   }
+  50%       { opacity: .3; transform: scale(.75);  }
+}
+
+/* ── Healthy zone ── */
+.healthy-zone {
+  background: color-mix(in srgb, var(--green) 6%, var(--bg));
+  border-top: 2px solid color-mix(in srgb, var(--green) 22%, transparent);
+}
+
+.healthy-label {
+  border-bottom: 1px solid color-mix(in srgb, var(--green) 18%, transparent);
+
+  svg { color: var(--green); flex-shrink: 0; }
+  span { color: var(--green); }
+}
+
+.healthy-row {
+  display: grid;
+  grid-template-columns: 1fr $col-count-w $col-pct-w $col-req-w $col-chev-w;
+  column-gap: $col-gap;
+  align-items: center;
+  padding: 8px $row-h-pad 8px ($row-h-pad + $icon-slot);
+  border-bottom: 1px solid color-mix(in srgb, var(--green) 12%, transparent);
+
+  &:last-child { border-bottom: none; }
+}
+
+.healthy-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  border: 1px solid color-mix(in srgb, var(--green) 28%, transparent);
+  background: color-mix(in srgb, var(--green) 8%, transparent);
+  color: var(--green);
+  white-space: nowrap;
+  align-self: center;
+  justify-self: start;
+}
+
+.healthy-num { color: color-mix(in srgb, var(--green) 90%, var(--text-primary)) !important; }
+.healthy-lbl { color: var(--green) !important; opacity: .75; }
+
+.healthy-pct {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--green);
+  text-align: right;
+  opacity: .8;
+}
+
+.healthy-req {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--green);
+  text-align: right;
+  line-height: 1;
+}
+
+.healthy-dash {
+  font-size: 12px;
+  color: color-mix(in srgb, var(--green) 25%, transparent);
+  text-align: right;
+  justify-self: end;
+}
+
+/* Sub-content table — left edge aligns with sub-header tag */
+.sub-content {
+  margin-left: $row-h-pad + $icon-slot;
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: auto;
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+}
+
+/* ── Content table (Phase-2 rows) ── */
 .platform-content {
   border-top: 1px solid var(--border);
   max-height: 320px;
@@ -421,12 +612,13 @@
 .rank-th  { width: 36px !important; }
 .rank-num { width: 36px; font-size: 11px; font-family: var(--mono); color: var(--text-secondary); opacity: .5; text-align: right; padding-right: 8px !important; }
 
-/* ── Request bar ── */
+/* ── Request bar (Others URL tab) ── */
 .bar-cell { display: flex; align-items: center; gap: 8px; }
 .req-bar  { flex: 1; height: 6px; background: color-mix(in srgb, var(--border) 80%, transparent); border-radius: 3px; overflow: hidden; }
 .req-bar-fill { height: 100%; background: var(--amber); border-radius: 3px; transition: width .4s ease; }
 .bar-val  { flex-shrink: 0; min-width: 48px; text-align: right; }
 
+/* ── Utilities ── */
 .mono { font-family: var(--mono); font-size: 12px; }
 .dim  { color: var(--text-secondary); }
 .red  { color: var(--red); }

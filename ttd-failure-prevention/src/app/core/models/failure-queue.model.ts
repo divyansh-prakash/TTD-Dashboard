@@ -21,6 +21,21 @@ export interface MatchedByGroup {
   totalRequestsAtRisk: number;
   rows: FailedRow[];
   expanded?: boolean;
+  detailLoaded?: boolean;
+  detailLoading?: boolean;
+  detailLoadingMore?: boolean;
+  detailOffset?: number;
+  detailHasMore?: boolean;
+}
+
+export interface HealthyGroup {
+  matchedBy: string;
+  totalRequestsServed: number;
+}
+
+export interface PlatformDetailResponse {
+  rows: FailedRow[];
+  meta: { offset: number; limit: number; hasMore: boolean };
 }
 
 export interface PlatformGroup {
@@ -30,6 +45,7 @@ export interface PlatformGroup {
   rows: FailedRow[];
   urlSummary?: UrlSummary[];
   matchedByGroups?: MatchedByGroup[];
+  healthyGroups?: HealthyGroup[];
   expanded?: boolean;
   othersTab?: 'content' | 'urls';
   detailLoaded?: boolean;

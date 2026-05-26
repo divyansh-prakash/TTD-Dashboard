@@ -1,12 +1,16 @@
 const { queryPostgres } = require('../db/postgres');
 
-let cache = null;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+let cache      = null;
+let cachedAt   = 0;
 
 async function getAllPlatformUrlMappings() {
-  if (cache) return cache;
+  if (cache && Date.now() - cachedAt < CACHE_TTL_MS) return cache;
   const rows = await queryPostgres('SELECT url, platform FROM platform_url_mapping');
-  cache = new Map(rows.map(r => [r.url, r.platform]));
-  console.log(`Loaded ${cache.size} URL→platform mappings from platform_url_mapping`);
+  cache    = new Map(rows.map(r => [r.url, r.platform]));
+  cachedAt = Date.now();
+  console.log(`[REPO:platformUrlMap] Loaded ${cache.size} URL→platform mappings`);
   return cache;
 }
 

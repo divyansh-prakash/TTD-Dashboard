@@ -1,0 +1,145 @@
+<h2>Showing healthy categories alongside failures</h2>
+<p class="subtitle">Three approaches — pick the one that fits how you want to scan this data</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f1117;border-radius:8px;padding:14px;font-family:monospace;font-size:12px">
+      <div style="background:#1a1d27;border-radius:6px;border:1px solid #2a2d3a;overflow:hidden">
+        <!-- Platform header -->
+        <div style="padding:12px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2a2d3a">
+          <div style="width:28px;height:28px;background:#3b4ea6;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px">T</div>
+          <span style="color:#e2e8f0;font-weight:600;font-size:13px;flex:1">Tubi</span>
+          <span style="color:#f87171;font-size:13px;font-weight:700">4.4M</span>
+        </div>
+        <!-- Health strip right below header -->
+        <div style="padding:7px 14px;background:#0d1f0d;border-bottom:1px solid #1a3a1a;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:10px;color:#4ade80;letter-spacing:.05em;text-transform:uppercase">✓ Healthy</span>
+          <span style="background:#14532d;color:#86efac;border-radius:10px;padding:1px 8px;font-size:10px;font-weight:600">Genre · Tubi</span>
+          <span style="background:#14532d;color:#86efac;border-radius:10px;padding:1px 8px;font-size:10px;font-weight:600">Content ID · Tubi</span>
+          <span style="background:#14532d;color:#86efac;border-radius:10px;padding:1px 8px;font-size:10px;font-weight:600">Segment · Tubi</span>
+          <span style="background:#14532d;color:#86efac;border-radius:10px;padding:1px 8px;font-size:10px;font-weight:600">Rating · Tubi</span>
+        </div>
+        <!-- Failure sub-accordions -->
+        <div style="padding:9px 14px 9px 42px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #1e2130">
+          <span style="background:#312e81;color:#a5b4fc;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;border:1px solid #4338ca">Genre · Tubi</span>
+          <span style="color:#94a3b8;font-size:11px;flex:1">695 content IDs</span>
+          <span style="color:#94a3b8;font-size:11px">2,625</span>
+        </div>
+        <div style="padding:9px 14px 9px 42px;display:flex;align-items:center;gap:8px">
+          <span style="background:#312e81;color:#a5b4fc;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;border:1px solid #4338ca">Unmatched</span>
+          <span style="color:#94a3b8;font-size:11px;flex:1">1.6M content IDs</span>
+          <span style="color:#f87171;font-size:11px;font-weight:700">4.4M</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Health strip on card header</h3>
+      <p>A compact green row appears just below every platform header listing all healthy (zero-failure) categories as pills. Always visible — no click needed. Shows at a glance that those categories are covered.</p>
+      <div class="pros-cons" style="margin-top:10px">
+        <div class="pros"><h4>Pros</h4><ul><li>Always visible, zero extra clicks</li><li>Immediate signal "these are safe"</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Adds vertical height to every card</li><li>No detail (just names, not counts)</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f1117;border-radius:8px;padding:14px;font-family:monospace;font-size:12px">
+      <div style="background:#1a1d27;border-radius:6px;border:1px solid #2a2d3a;overflow:hidden">
+        <!-- Platform header -->
+        <div style="padding:12px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2a2d3a">
+          <div style="width:28px;height:28px;background:#3b4ea6;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px">T</div>
+          <span style="color:#e2e8f0;font-weight:600;font-size:13px;flex:1">Tubi</span>
+          <span style="background:#14532d;color:#86efac;border-radius:10px;padding:2px 8px;font-size:10px;font-weight:600;margin-right:4px">4 healthy</span>
+          <span style="color:#f87171;font-size:13px;font-weight:700">4.4M</span>
+        </div>
+        <!-- Failure sub-accordions -->
+        <div style="background:#0d1017;padding:5px 14px 5px 42px;display:flex;gap:8px;align-items:center;border-bottom:1px solid #1e2130">
+          <span style="color:#6b7280;font-size:10px;letter-spacing:.04em;text-transform:uppercase">Failing</span>
+        </div>
+        <div style="padding:8px 14px 8px 42px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #1e2130">
+          <span style="background:#312e81;color:#a5b4fc;border-radius:4px;padding:1px 7px;font-size:10px;border:1px solid #4338ca">Genre · Tubi</span>
+          <span style="color:#94a3b8;font-size:11px;flex:1">695 IDs</span>
+          <span style="color:#94a3b8;font-size:11px">2,625</span>
+        </div>
+        <div style="padding:8px 14px 8px 42px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #1e2130">
+          <span style="background:#312e81;color:#a5b4fc;border-radius:4px;padding:1px 7px;font-size:10px;border:1px solid #4338ca">Unmatched</span>
+          <span style="color:#94a3b8;font-size:11px;flex:1">1.6M IDs</span>
+          <span style="color:#f87171;font-size:11px;font-weight:700">4.4M</span>
+        </div>
+        <!-- Healthy section divider -->
+        <div style="background:#0d1017;padding:5px 14px 5px 42px;display:flex;gap:8px;align-items:center;border-top:1px solid #1e2130;border-bottom:1px solid #1e2130">
+          <span style="color:#4ade80;font-size:10px;letter-spacing:.04em;text-transform:uppercase">✓ Healthy</span>
+        </div>
+        <div style="padding:7px 14px 7px 42px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #162416">
+          <span style="background:#14532d;color:#86efac;border-radius:4px;padding:1px 7px;font-size:10px;border:1px solid #166534">Content ID · Tubi</span>
+          <span style="color:#4ade80;font-size:11px;flex:1">65.6K served</span>
+          <span style="color:#4ade80;font-size:11px;font-weight:600">100%</span>
+        </div>
+        <div style="padding:7px 14px 7px 42px;display:flex;align-items:center;gap:8px">
+          <span style="background:#14532d;color:#86efac;border-radius:4px;padding:1px 7px;font-size:10px;border:1px solid #166534">Segment · Tubi</span>
+          <span style="color:#4ade80;font-size:11px;flex:1">147.7K served</span>
+          <span style="color:#4ade80;font-size:11px;font-weight:600">100%</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Healthy section inside expanded card</h3>
+      <p>When a platform card is expanded, failing sub-accordions appear first (as today), followed by a "Healthy" divider row and green sub-rows for each zero-failure category with their served request counts.</p>
+      <div class="pros-cons" style="margin-top:10px">
+        <div class="pros"><h4>Pros</h4><ul><li>Shows real numbers (how many served)</li><li>Same grid alignment — easy to compare</li><li>Doesn't clutter collapsed cards</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Need to expand the card to see it</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f1117;border-radius:8px;padding:14px;font-family:monospace;font-size:12px">
+      <div style="background:#1a1d27;border-radius:6px;border:1px solid #2a2d3a;overflow:hidden">
+        <!-- Platform header with toggle -->
+        <div style="padding:12px 14px;display:flex;align-items:center;gap:10px">
+          <div style="width:28px;height:28px;background:#3b4ea6;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px">T</div>
+          <span style="color:#e2e8f0;font-weight:600;font-size:13px;flex:1">Tubi</span>
+          <!-- mode toggle -->
+          <div style="display:flex;background:#0f1117;border-radius:6px;padding:2px;gap:2px;border:1px solid #2a2d3a">
+            <span style="padding:3px 10px;background:#1e2235;border-radius:4px;font-size:10px;color:#f87171;font-weight:600">Failures</span>
+            <span style="padding:3px 10px;font-size:10px;color:#6b7280;font-weight:600">All</span>
+          </div>
+          <span style="color:#f87171;font-size:13px;font-weight:700">4.4M</span>
+        </div>
+        <!-- Sub rows in "Failures" mode -->
+        <div style="border-top:1px solid #2a2d3a;padding:8px 14px 8px 42px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #1e2130">
+          <span style="background:#312e81;color:#a5b4fc;border-radius:4px;padding:1px 7px;font-size:10px;border:1px solid #4338ca">Genre · Tubi</span>
+          <span style="color:#94a3b8;font-size:11px;flex:1">695 IDs</span>
+          <span style="color:#94a3b8;font-size:11px">2,625</span>
+        </div>
+        <div style="padding:8px 14px 8px 42px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #1e2130">
+          <span style="background:#312e81;color:#a5b4fc;border-radius:4px;padding:1px 7px;font-size:10px;border:1px solid #4338ca">Unmatched</span>
+          <span style="color:#94a3b8;font-size:11px;flex:1">1.6M IDs</span>
+          <span style="color:#f87171;font-size:11px;font-weight:700">4.4M</span>
+        </div>
+        <!-- "All" mode preview -->
+        <div style="padding:5px 14px;background:#0a1a0a;border-top:2px dashed #1e3a1e;display:flex;gap:6px;align-items:center">
+          <span style="color:#4ade80;font-size:10px">Switch to "All" to also see →</span>
+          <span style="background:#14532d;color:#86efac;border-radius:10px;padding:1px 7px;font-size:10px">Content ID</span>
+          <span style="background:#14532d;color:#86efac;border-radius:10px;padding:1px 7px;font-size:10px">Segment</span>
+          <span style="color:#4ade80;font-size:10px">+2 more</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Toggle between Failures / All view</h3>
+      <p>Each expanded platform card gets a small segmented toggle: "Failures" (default) shows only failing categories as today. "All" shows everything — failed and healthy together, color-coded red/green — plus served counts for the healthy ones.</p>
+      <div class="pros-cons" style="margin-top:10px">
+        <div class="pros"><h4>Pros</h4><ul><li>Zero clutter by default</li><li>Unified view when you need it</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Extra click to see healthy data</li><li>More state to manage per card</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px">Click a card to select it, then tell me in the terminal which direction you want to go (or mix ideas from multiple).</p>
