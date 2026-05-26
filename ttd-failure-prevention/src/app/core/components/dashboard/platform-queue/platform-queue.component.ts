@@ -32,11 +32,9 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
   private cancelTable$  = new Subject<void>();
   private destroy$      = new Subject<void>();
   private observer?: IntersectionObserver;
-  private _sentinel?: ElementRef;
 
   @ViewChild('scrollSentinel')
   set sentinel(el: ElementRef | undefined) {
-    this._sentinel = el;
     if (el?.nativeElement && this.observer) {
       this.observer.observe(el.nativeElement);
     }
@@ -60,7 +58,7 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
       if (entry.isIntersecting && !this.loadingMore() && !this.loading()) {
         if (this.platforms().length < this.total) this.loadMore();
       }
-    }, { threshold: 0.1 });
+    }, { threshold: 0 });
   }
 
   ngOnDestroy() {
@@ -71,6 +69,7 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
 
   private loadTable() {
     this.cancelTable$.next();
+    this.loadingMore.set(false);
     this.loading.set(true);
     this.error.set('');
     this.currentOffset = 0;
@@ -104,7 +103,7 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
   private loadMore() {
     this.loadingMore.set(true);
     this.api.getByPlatform(this.filters, this.currentOffset, 25)
-      .pipe(takeUntil(this.destroy$))
+      .pipe(takeUntil(this.cancelTable$), takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
           const incoming = res.platforms.map(p => ({
