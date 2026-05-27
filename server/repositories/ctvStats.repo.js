@@ -33,34 +33,84 @@ function totalDateConditions(dateFrom, dateTo, brandSafe) {
   return conds;
 }
 
-// Builds a matchedby condition for Phase-2 queries.
+// ── Unified aggregation helpers ───────────────────────────────────────────────
+
+// Builds SELECT / GROUP BY / ORDER BY clauses from a groupBy key.
+// All callers get the same projection — the only variable is the key column.
+function buildAggClauses(groupBy) {
+  switch (groupBy) {
+    case 'date':
+      return {
+        select:   'toString(date) AS date, SUM(total) AS req_total',
+        group:    'date',
+        order:    'date ASC',
+      };
+    case 'hour':
+      return {
+        select:   'toHour(timestamp) AS hour, SUM(total) AS req_total',
+        group:    'hour',
+        order:    'hour ASC',
+      };
+    case 'url':
+      return {
+        select:   'url, SUM(total) AS req_total',
+        group:    'url',
+        order:    'req_total DESC',
+      };
+    case 'url,matchedby':
+      return {
+        select:   'url, matchedby, SUM(total) AS req_total, uniq(contentid) AS content_count',
+        group:    'url, matchedby',
+        order:    'req_total DESC',
+      };
+    case 'matchedby':
+      return {
+        select:   'matchedby, SUM(total) AS req_total, uniq(contentid) AS content_count',
+        group:    'matchedby',
+        order:    'req_total DESC',
+      };
+    default:
+      throw new Error(`[ctvStats] unknown groupBy: ${groupBy}`);
+  }
+}
+
+/**
+ * Unified failed-request aggregate (success = 0).
+ * groupBy: 'date' | 'hour' | 'url' | 'url,matchedby' | 'matchedby'
+ * Pass urls OR excludeUrls (not both) to scope by platform.
+ */
+async function getCtvFailedAgg({ dateFrom, dateTo, brandSafe, urls = [], excludeUrls = [], groupBy = 'date', limit }) {
+  const conds = dateConditions(dateFrom, dateTo, brandSafe);
+  if (urls.length)        conds.push(`url IN (${urls.map(sq).join(',')})`);
+  if (excludeUrls.length) conds.push(`url NOT IN (${excludeUrls.map(sq).join(',')})`);
+  const { select, group, order } = buildAggClauses(groupBy);
+  const limitClause = limit ? `LIMIT ${limit}` : '';
+  console.log(`[REPO:ctvStats] getCtvFailedAgg groupBy=${groupBy} dateFrom=${dateFrom} dateTo=${dateTo} urls=${urls.length} excludeUrls=${excludeUrls.length}`);
+  const sql = `SELECT ${select} FROM ctv_stats WHERE ${conds.join(' AND ')} GROUP BY ${group} ORDER BY ${order} ${limitClause}`;
+  return queryClickHouse(sql, DB);
+}
+
+/**
+ * Unified total-request aggregate (success = 0 + 1, no success filter).
+ * Identical base conditions to getCtvFailedAgg except no success = 0 predicate.
+ */
+async function getCtvTotalAgg({ dateFrom, dateTo, brandSafe, urls = [], excludeUrls = [], groupBy = 'date', limit }) {
+  const conds = totalDateConditions(dateFrom, dateTo, brandSafe);
+  if (urls.length)        conds.push(`url IN (${urls.map(sq).join(',')})`);
+  if (excludeUrls.length) conds.push(`url NOT IN (${excludeUrls.map(sq).join(',')})`);
+  const { select, group, order } = buildAggClauses(groupBy);
+  const limitClause = limit ? `LIMIT ${limit}` : '';
+  console.log(`[REPO:ctvStats] getCtvTotalAgg groupBy=${groupBy} dateFrom=${dateFrom} dateTo=${dateTo} urls=${urls.length} excludeUrls=${excludeUrls.length}`);
+  const sql = `SELECT ${select} FROM ctv_stats WHERE ${conds.join(' AND ')} GROUP BY ${group} ORDER BY ${order} ${limitClause}`;
+  return queryClickHouse(sql, DB);
+}
+
+// ── Builds a matchedby condition for Phase-2 queries ─────────────────────────
 // 'Unmatched' matches rows where matchedby is empty or NULL.
 function matchedByCondition(matchedBy) {
   if (!matchedBy) return null;
   if (matchedBy === 'Unmatched') return `(matchedby = '' OR matchedby IS NULL)`;
   return `matchedby = ${sq(matchedBy)}`;
-}
-
-/**
- * Phase-1: aggregate by (url, matchedby) for the given set of URLs only.
- * Scoping to mappedUrls avoids scanning unmapped bundle IDs.
- */
-async function getFailedUrlChannelTotals({ dateFrom, dateTo, brandSafe, urls = [] }) {
-  console.log(`[REPO:ctvStats] getFailedUrlChannelTotals dateFrom=${dateFrom} dateTo=${dateTo} urlCount=${urls.length}`);
-  const conds = dateConditions(dateFrom, dateTo, brandSafe);
-  if (urls.length) conds.push(`url IN (${urls.map(sq).join(',')})`);
-  const sql = `
-    SELECT
-      url,
-      matchedby,
-      SUM(total)      AS req_total,
-      uniq(contentid) AS content_count
-    FROM ctv_stats
-    WHERE ${conds.join(' AND ')}
-    GROUP BY url, matchedby
-    ORDER BY req_total DESC
-  `;
-  return queryClickHouse(sql, DB);
 }
 
 /**
@@ -123,121 +173,80 @@ async function getFailedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, 
 }
 
 /**
- * Phase-1 for Others: aggregate unmapped URLs by matchedby.
- * Builds the Others accordion header counts without fetching content rows.
+ * Phase-2 enrichable: paginated success=1 rows for a specific set of URLs.
+ * Used when an enrichable (G_/R_/S_) sub-accordion is expanded — shows served content IDs.
  */
-async function getOthersChannelTotals({ dateFrom, dateTo, brandSafe, excludeUrls }) {
-  console.log(`[REPO:ctvStats] getOthersChannelTotals excludeCount=${excludeUrls.length} dateFrom=${dateFrom} dateTo=${dateTo}`);
-  const conds = [
-    ...dateConditions(dateFrom, dateTo, brandSafe),
-    `url NOT IN (${excludeUrls.map(sq).join(',')})`,
-  ];
-  const sql = `
-    SELECT
-      matchedby,
-      SUM(total)      AS req_total,
-      uniq(contentid) AS content_count
-    FROM ctv_stats
-    WHERE ${conds.join(' AND ')}
-    GROUP BY matchedby
-    ORDER BY req_total DESC
-  `;
-  return queryClickHouse(sql, DB);
-}
-
-/**
- * Top N unmapped URLs by failed requests — populates the Others "By URL" tab.
- */
-async function getOthersTopUrls({ dateFrom, dateTo, brandSafe, excludeUrls, limit = 100 }) {
-  console.log(`[REPO:ctvStats] getOthersTopUrls excludeCount=${excludeUrls.length} limit=${limit} dateFrom=${dateFrom} dateTo=${dateTo}`);
-  const conds = [
-    ...dateConditions(dateFrom, dateTo, brandSafe),
-    `url NOT IN (${excludeUrls.map(sq).join(',')})`,
-  ];
-  const sql = `
-    SELECT
-      url,
-      SUM(total)      AS req_total,
-      uniq(contentid) AS content_count
-    FROM ctv_stats
-    WHERE ${conds.join(' AND ')}
-    GROUP BY url
-    ORDER BY req_total DESC
-    LIMIT ${limit}
-  `;
-  return queryClickHouse(sql, DB);
-}
-
-/**
- * Top N urls by total failed requests — used in the platform-filtered trend flow.
- */
-async function getTopFailedUrls({ dateFrom, dateTo, brandSafe, limit = 50 }) {
-  console.log(`[REPO:ctvStats] getTopFailedUrls dateFrom=${dateFrom} dateTo=${dateTo} limit=${limit}`);
-  const sql = `
-    SELECT url, SUM(total) AS req_total
-    FROM ctv_stats
-    WHERE ${dateConditions(dateFrom, dateTo, brandSafe).join(' AND ')}
-    GROUP BY url
-    ORDER BY req_total DESC
-    LIMIT ${limit}
-  `;
-  return queryClickHouse(sql, DB);
-}
-
-/**
- * Daily total failures — one row per day, used for the "All Platforms" trend line.
- */
-async function getDailyTotals({ dateFrom, dateTo, brandSafe }) {
-  console.log(`[REPO:ctvStats] getDailyTotals dateFrom=${dateFrom} dateTo=${dateTo}`);
-  const sql = `
-    SELECT toString(date) AS date, SUM(total) AS req_total
-    FROM ctv_stats
-    WHERE ${dateConditions(dateFrom, dateTo, brandSafe).join(' AND ')}
-    GROUP BY date
-    ORDER BY date ASC
-  `;
-  return queryClickHouse(sql, DB);
-}
-
-/**
- * Daily failures for specific URLs — used for the platform-filtered trend line.
- */
-async function getDailyTotalsByUrls({ dateFrom, dateTo, brandSafe, urls }) {
-  console.log(`[REPO:ctvStats] getDailyTotalsByUrls dateFrom=${dateFrom} dateTo=${dateTo} urlCount=${urls.length}`);
-  const conds = [
-    ...dateConditions(dateFrom, dateTo, brandSafe),
+async function getServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, matchedBy, limit = 25, offset = 0 }) {
+  console.log(`[REPO:ctvStats] getServedContentRowsByUrls urlCount=${urls.length} matchedBy=${matchedBy} limit=${limit} offset=${offset}`);
+  const whereConds = [
+    'success = 1',
+    `date >= '${dateFrom}'`,
+    `date <= '${dateTo}'`,
+    "NOT startsWith(contentid, 'iris')",
     `url IN (${urls.map(sq).join(',')})`,
   ];
+  if (brandSafe === '1') whereConds.push('isbrandsafe = 1');
+  if (brandSafe === '0') whereConds.push('isbrandsafe = 0');
+  const mbCond = matchedBy ? `matchedby = ${sq(matchedBy)}` : null;
   const sql = `
-    SELECT toString(date) AS date, url, SUM(total) AS req_total
+    SELECT
+      contentid,
+      url,
+      channel,
+      SUM(total)       AS req_total,
+      any(matchedby)   AS matchedby,
+      any(segment)     AS segment,
+      any(isbrandsafe) AS isbrandsafe
     FROM ctv_stats
-    WHERE ${conds.join(' AND ')}
-    GROUP BY date, url
-    ORDER BY date ASC
+    WHERE ${whereConds.join(' AND ')}
+    GROUP BY contentid, url, channel
+    ${mbCond ? `HAVING ${mbCond}` : ''}
+    ORDER BY req_total DESC
+    LIMIT ${limit} OFFSET ${offset}
   `;
   return queryClickHouse(sql, DB);
 }
 
 /**
- * Hourly failures for a single day — used when dateFrom === dateTo.
+ * Phase-2 enrichable for Others: paginated success=1 rows for unmapped URLs.
  */
-async function getHourlyTotals({ date, brandSafe }) {
-  console.log(`[REPO:ctvStats] getHourlyTotals date=${date}`);
+async function getServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, excludeUrls, matchedBy, limit = 25, offset = 0 }) {
+  console.log(`[REPO:ctvStats] getServedContentRowsExcludingUrls excludeCount=${excludeUrls.length} matchedBy=${matchedBy} limit=${limit} offset=${offset}`);
+  const whereConds = [
+    'success = 1',
+    `date >= '${dateFrom}'`,
+    `date <= '${dateTo}'`,
+    "NOT startsWith(contentid, 'iris')",
+    `url NOT IN (${excludeUrls.map(sq).join(',')})`,
+  ];
+  if (brandSafe === '1') whereConds.push('isbrandsafe = 1');
+  if (brandSafe === '0') whereConds.push('isbrandsafe = 0');
+  const mbCond = matchedBy ? `matchedby = ${sq(matchedBy)}` : null;
   const sql = `
-    SELECT toHour(timestamp) AS hour, SUM(total) AS req_total
+    SELECT
+      contentid,
+      url,
+      channel,
+      SUM(total)       AS req_total,
+      any(matchedby)   AS matchedby,
+      any(segment)     AS segment,
+      any(isbrandsafe) AS isbrandsafe
     FROM ctv_stats
-    WHERE ${dateConditions(date, date, brandSafe).join(' AND ')}
-    GROUP BY hour
-    ORDER BY hour ASC
+    WHERE ${whereConds.join(' AND ')}
+    GROUP BY contentid, url, channel
+    ${mbCond ? `HAVING ${mbCond}` : ''}
+    ORDER BY req_total DESC
+    LIMIT ${limit} OFFSET ${offset}
   `;
   return queryClickHouse(sql, DB);
 }
 
 /**
  * All failed content rows for a set of URLs — no LIMIT, used for CSV export.
+ * Pass onlyUnmatched=true to restrict to rows where matchedby is empty (failing zone download).
  */
-async function getAllFailedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls }) {
-  console.log(`[REPO:ctvStats] getAllFailedContentRowsByUrls dateFrom=${dateFrom} dateTo=${dateTo} urlCount=${urls.length}`);
+async function getAllFailedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, onlyUnmatched = false }) {
+  console.log(`[REPO:ctvStats] getAllFailedContentRowsByUrls dateFrom=${dateFrom} dateTo=${dateTo} urlCount=${urls.length} onlyUnmatched=${onlyUnmatched}`);
   const conds = [
     ...dateConditions(dateFrom, dateTo, brandSafe),
     `url IN (${urls.map(sq).join(',')})`,
@@ -253,6 +262,99 @@ async function getAllFailedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls
     FROM ctv_stats
     WHERE ${conds.join(' AND ')}
     GROUP BY contentid, url, channel
+    ${onlyUnmatched ? "HAVING (matchedby = '' OR matchedby IS NULL)" : ''}
+    ORDER BY req_total DESC
+  `;
+  return queryClickHouse(sql, DB);
+}
+
+/**
+ * All failed content rows for URLs NOT in the platform mapping — no LIMIT, used for Others CSV export.
+ */
+async function getAllFailedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, excludeUrls, onlyUnmatched = false }) {
+  console.log(`[REPO:ctvStats] getAllFailedContentRowsExcludingUrls excludeCount=${excludeUrls.length} onlyUnmatched=${onlyUnmatched}`);
+  const conds = [
+    ...dateConditions(dateFrom, dateTo, brandSafe),
+    `url NOT IN (${excludeUrls.map(sq).join(',')})`,
+  ];
+  const sql = `
+    SELECT
+      contentid,
+      url,
+      channel,
+      SUM(total)       AS req_total,
+      any(matchedby)   AS matchedby,
+      any(segment)     AS segment
+    FROM ctv_stats
+    WHERE ${conds.join(' AND ')}
+    GROUP BY contentid, url, channel
+    ${onlyUnmatched ? "HAVING (matchedby = '' OR matchedby IS NULL)" : ''}
+    ORDER BY req_total DESC
+  `;
+  return queryClickHouse(sql, DB);
+}
+
+/**
+ * All served (success=1) content rows for URLs NOT in the platform mapping — no LIMIT, for Others CSV export.
+ * Pass matchedBy to scope to a single segment category.
+ */
+async function getAllServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, excludeUrls, matchedBy }) {
+  console.log(`[REPO:ctvStats] getAllServedContentRowsExcludingUrls excludeCount=${excludeUrls.length} matchedBy=${matchedBy}`);
+  const conds = [
+    'success = 1',
+    `date >= '${dateFrom}'`,
+    `date <= '${dateTo}'`,
+    "NOT startsWith(contentid, 'iris')",
+    `url NOT IN (${excludeUrls.map(sq).join(',')})`,
+  ];
+  if (brandSafe === '1') conds.push('isbrandsafe = 1');
+  if (brandSafe === '0') conds.push('isbrandsafe = 0');
+  const mbCond = matchedBy ? `matchedby = ${sq(matchedBy)}` : null;
+  const sql = `
+    SELECT
+      contentid,
+      url,
+      channel,
+      SUM(total)       AS req_total,
+      any(matchedby)   AS matchedby,
+      any(segment)     AS segment
+    FROM ctv_stats
+    WHERE ${conds.join(' AND ')}
+    GROUP BY contentid, url, channel
+    ${mbCond ? `HAVING ${mbCond}` : ''}
+    ORDER BY req_total DESC
+  `;
+  return queryClickHouse(sql, DB);
+}
+
+/**
+ * All served (success=1) content rows for a set of URLs — no LIMIT, used for enrichable CSV export.
+ * Pass matchedBy to scope to a single segment category (e.g. 'G_Roku').
+ */
+async function getAllServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, matchedBy }) {
+  console.log(`[REPO:ctvStats] getAllServedContentRowsByUrls dateFrom=${dateFrom} dateTo=${dateTo} urlCount=${urls.length} matchedBy=${matchedBy}`);
+  const conds = [
+    'success = 1',
+    `date >= '${dateFrom}'`,
+    `date <= '${dateTo}'`,
+    "NOT startsWith(contentid, 'iris')",
+    `url IN (${urls.map(sq).join(',')})`,
+  ];
+  if (brandSafe === '1') conds.push('isbrandsafe = 1');
+  if (brandSafe === '0') conds.push('isbrandsafe = 0');
+  const mbCond = matchedBy ? `matchedby = ${sq(matchedBy)}` : null;
+  const sql = `
+    SELECT
+      contentid,
+      url,
+      channel,
+      SUM(total)       AS req_total,
+      any(matchedby)   AS matchedby,
+      any(segment)     AS segment
+    FROM ctv_stats
+    WHERE ${conds.join(' AND ')}
+    GROUP BY contentid, url, channel
+    ${mbCond ? `HAVING ${mbCond}` : ''}
     ORDER BY req_total DESC
   `;
   return queryClickHouse(sql, DB);
@@ -289,68 +391,19 @@ async function getHealthyCategoryTotals({ dateFrom, dateTo, brandSafe, urls = []
   return queryClickHouse(sql, DB);
 }
 
-/**
- * Daily total all requests (success + failed) — used for the trend "Total" line.
- */
-async function getDailyTotalAllRequests({ dateFrom, dateTo, brandSafe }) {
-  console.log(`[REPO:ctvStats] getDailyTotalAllRequests dateFrom=${dateFrom} dateTo=${dateTo}`);
-  const sql = `
-    SELECT toString(date) AS date, SUM(total) AS req_total
-    FROM ctv_stats
-    WHERE ${totalDateConditions(dateFrom, dateTo, brandSafe).join(' AND ')}
-    GROUP BY date
-    ORDER BY date ASC
-  `;
-  return queryClickHouse(sql, DB);
-}
-
-/**
- * Hourly total all requests for a single day — used for the trend "Total" line.
- */
-async function getHourlyTotalAllRequests({ date, brandSafe }) {
-  console.log(`[REPO:ctvStats] getHourlyTotalAllRequests date=${date}`);
-  const sql = `
-    SELECT toHour(timestamp) AS hour, SUM(total) AS req_total
-    FROM ctv_stats
-    WHERE ${totalDateConditions(date, date, brandSafe).join(' AND ')}
-    GROUP BY hour
-    ORDER BY hour ASC
-  `;
-  return queryClickHouse(sql, DB);
-}
-
-/**
- * Daily total all requests for specific URLs — used for the platform-filtered trend "Total" line.
- */
-async function getDailyTotalsByUrlsAll({ dateFrom, dateTo, brandSafe, urls }) {
-  console.log(`[REPO:ctvStats] getDailyTotalsByUrlsAll dateFrom=${dateFrom} dateTo=${dateTo} urlCount=${urls.length}`);
-  const conds = [
-    ...totalDateConditions(dateFrom, dateTo, brandSafe),
-    `url IN (${urls.map(sq).join(',')})`,
-  ];
-  const sql = `
-    SELECT toString(date) AS date, url, SUM(total) AS req_total
-    FROM ctv_stats
-    WHERE ${conds.join(' AND ')}
-    GROUP BY date, url
-    ORDER BY date ASC
-  `;
-  return queryClickHouse(sql, DB);
-}
-
 module.exports = {
-  getFailedUrlChannelTotals,
+  // Unified aggregation (preferred for all new callers)
+  getCtvFailedAgg,
+  getCtvTotalAgg,
+  // Phase-2 content-row drills (paginated, different SELECT shape)
   getFailedContentRowsByUrls,
   getAllFailedContentRowsByUrls,
+  getAllFailedContentRowsExcludingUrls,
   getFailedContentRowsExcludingUrls,
-  getOthersChannelTotals,
-  getOthersTopUrls,
-  getTopFailedUrls,
+  getServedContentRowsByUrls,
+  getAllServedContentRowsByUrls,
+  getServedContentRowsExcludingUrls,
+  getAllServedContentRowsExcludingUrls,
+  // Enrichable category totals (success=1 special case)
   getHealthyCategoryTotals,
-  getDailyTotals,
-  getDailyTotalsByUrls,
-  getHourlyTotals,
-  getDailyTotalAllRequests,
-  getHourlyTotalAllRequests,
-  getDailyTotalsByUrlsAll,
 };

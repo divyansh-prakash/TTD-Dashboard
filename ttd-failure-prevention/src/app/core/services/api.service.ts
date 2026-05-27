@@ -29,12 +29,14 @@ export class ApiService {
     matchedBy?: string,
     offset = 0,
     limit = 25,
+    enrichable = false,
   ): Observable<PlatformDetailResponse> {
     let params = new HttpParams().set('platform', platform);
     if (filters.dateFrom) params = params.set('dateFrom', filters.dateFrom);
     if (filters.dateTo) params = params.set('dateTo', filters.dateTo);
     if (filters.brandSafe && filters.brandSafe !== 'all') params = params.set('brandSafe', filters.brandSafe);
     if (matchedBy) params = params.set('matchedBy', matchedBy);
+    if (enrichable) params = params.set('enrichable', 'true');
     params = params.set('offset', String(offset));
     params = params.set('limit', String(limit));
     return this.http.get<PlatformDetailResponse>(`${this.base}/failure-queue/by-platform/detail`, { params });
@@ -44,11 +46,12 @@ export class ApiService {
     return this.http.get<FilterOptions>(`${this.base}/failure-queue/filters/options`);
   }
 
-  downloadPlatformCsv(platform: string, filters: Partial<FailureQueueFilters>): Observable<Blob> {
-    let params = new HttpParams().set('platform', platform);
+  downloadCsv(platform: string, filters: Partial<FailureQueueFilters>, type: 'all' | 'enrichable' | 'failed', matchedBy?: string): Observable<Blob> {
+    let params = new HttpParams().set('platform', platform).set('type', type);
     if (filters.dateFrom)  params = params.set('dateFrom',  filters.dateFrom);
     if (filters.dateTo)    params = params.set('dateTo',    filters.dateTo);
     if (filters.brandSafe && filters.brandSafe !== 'all') params = params.set('brandSafe', filters.brandSafe);
+    if (matchedBy) params = params.set('matchedBy', matchedBy);
     return this.http.get(`${this.base}/failure-queue/by-platform/download`, { params, responseType: 'blob' });
   }
 

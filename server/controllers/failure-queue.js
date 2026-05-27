@@ -56,8 +56,8 @@ async function download(req, res) {
   try {
     const params = parseDownloadQuery(req.query);
     if (!params.platform) return res.status(400).json({ error: 'platform is required' });
-    const csv      = await service.downloadPlatformCsv(params);
-    const filename = `${params.platform}-failed-content-ids-${params.dateFrom}-${params.dateTo}.csv`;
+    const csv      = await service.downloadCsv(params);
+    const filename = `${params.platform}-${params.type}-${params.dateFrom}-${params.dateTo}.csv`;
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);

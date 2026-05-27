@@ -8,9 +8,8 @@
    Platform: padding-left 16px + icon-slot 48px = 64px
    Sub:      padding-left 64px (= 16px outer + 48px indent)
    ───────────────────────────────────────────────────────────── */
-$col-count-w : 110px;   // content-IDs column
-$col-pct-w   :  60px;   // percentage column
-$col-req-w   :  96px;   // requests-at-risk column
+$col-count-w : 110px;   // requests column
+$col-pct-w   :  72px;   // percentage column (wider for two-liner success%/fail%)
 $col-chev-w  :  20px;   // chevron column
 $col-gap     :  20px;   // gap between every column
 $row-h-pad   :  16px;   // left/right padding on rows
@@ -35,8 +34,20 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
 }
 
 .stat-label { font-size: 12px; color: var(--text-secondary); }
-.stat-value { font-size: 14px; font-weight: 700; font-family: var(--mono); }
-.stat-value.red { color: var(--red); }
+.stat-value {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--mono);
+  &.red   { color: var(--red); }
+  &.green { color: var(--green); }
+  &.amber { color: var(--amber); }
+}
+.stat-sub {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-secondary);
+  &.red { color: var(--red); opacity: .7; }
+}
 
 .meta-range {
   font-size: 12px;
@@ -104,19 +115,54 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Column header band ──────────────────────────────────────────
+   Sits above the platform cards. Uses the exact same grid/padding
+   as .platform-header so the labels align pixel-perfectly with the
+   data columns below.
+   ─────────────────────────────────────────────────────────────── */
+.col-header-band {
+  display: grid;
+  grid-template-columns: 1fr $col-count-w $col-pct-w $col-chev-w;
+  column-gap: $col-gap;
+  padding: 7px $row-h-pad;
+  background: color-mix(in srgb, var(--text-primary) 3%, var(--bg));
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  border-left: 3px solid var(--accent);
+  margin-bottom: -1px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.th-col {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-secondary);
+  font-family: var(--mono);
+
+  &.th-r { text-align: right; }
+}
+
 /* ── Platform list ── */
 .platform-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
 }
 
 .platform-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: var(--shadow);
+
+  &:first-child { border-top: none; }
+  &:not(:last-child) { border-bottom: none; }
+  &:last-child { border-radius: 0 0 var(--radius) var(--radius); }
 }
 
 /* ── Platform header row ─────────────────────────────────────
@@ -125,7 +171,7 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
    ───────────────────────────────────────────────────────────── */
 .platform-header {
   display: grid;
-  grid-template-columns: 1fr $col-count-w $col-pct-w $col-req-w $col-chev-w;
+  grid-template-columns: 1fr $col-count-w $col-pct-w $col-chev-w;
   column-gap: $col-gap;
   align-items: center;
   width: 100%;
@@ -137,39 +183,52 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
   &:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
 }
 
-/* ── Download button — sits in ph-name-area, pushed right ── */
-.download-btn {
-  margin-left: auto;
+/* ── Platform row wrapper (header + end download button) ── */
+.platform-row {
+  display: flex;
+  align-items: stretch;
+
+  .platform-header { flex: 1; min-width: 0; }
+}
+
+/* ── Download button at end of platform row ── */
+.row-end-dl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  flex-shrink: 0;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color .15s, background .15s;
+
+  &:hover { color: var(--accent); background: var(--accent-light); }
+  &.downloading { opacity: .5; cursor: default; pointer-events: none; }
+
+  .spinner { width: 12px; height: 12px; border-width: 1.5px; }
+}
+
+/* ── Per-row download button inside enrichable/unmatched table ── */
+.e-row-dl-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: none;
+  border-radius: 4px;
+  background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  flex-shrink: 0;
-  transition: color .15s, border-color .15s, background .15s;
+  transition: color .15s, background .15s;
 
-  &:hover {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: var(--green-light);
-  }
+  &:hover { color: var(--accent); background: var(--accent-light); }
+  &.downloading { opacity: .5; cursor: default; pointer-events: none; }
 
-  &.downloading {
-    opacity: .6;
-    cursor: default;
-    pointer-events: none;
-  }
-
-  .spinner {
-    width: 12px;
-    height: 12px;
-    border-width: 1.5px;
-  }
+  .spinner { width: 10px; height: 10px; border-width: 1.5px; }
 }
 
 .ph-name-area {
@@ -242,6 +301,34 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
   text-align: right;
 }
 
+/* Two-liner % wrapper: success % on top, fail % subscript in red below */
+.col-pct-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  justify-self: end;
+}
+
+/* Red subscript line — failure % or blacklisted count */
+.col-pct-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--red);
+  opacity: .75;
+}
+
+/* Red sub-label in col-count (blacklisted segments line) */
+.col-lbl-red {
+  font-size: 10px;
+  color: var(--red) !important;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  opacity: .8;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .col-req {
   font-family: var(--mono);
   font-size: 17px;
@@ -249,6 +336,16 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
   color: var(--red);
   text-align: right;
   line-height: 1;
+}
+
+/* Served count line inside a non-C_ failing sub-accordion */
+.col-served-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--green);
+  text-align: right;
+  white-space: nowrap;
 }
 
 /* ── Chevron ── */
@@ -364,7 +461,7 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
    ───────────────────────────────────────────────────────────── */
 .sub-header {
   display: grid;
-  grid-template-columns: 1fr $col-count-w $col-pct-w $col-req-w $col-chev-w;
+  grid-template-columns: 1fr $col-count-w $col-pct-w $col-chev-w;
   column-gap: $col-gap;
   align-items: center;
   width: 100%;
@@ -377,10 +474,9 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
 
   &:hover { background: color-mix(in srgb, var(--accent) 2%, transparent); }
 
-  /* Visually lighter than platform-level numbers */
-  .col-req { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
-  .col-num  { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
-  .col-pct  { font-size: 11px; }
+  .col-num { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+  .col-pct { font-size: 11px; }
+  .col-pct-sub { font-size: 10px; }
 }
 
 /* Square label chip for a failing matchedBy category.
@@ -425,7 +521,7 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
 /* ── Failing zone ── */
 .failing-zone {
   background: color-mix(in srgb, var(--red) 3%, var(--bg));
-  border-bottom: 1px solid color-mix(in srgb, var(--red) 12%, transparent);
+  border-top: 2px solid color-mix(in srgb, var(--red) 20%, transparent);
 }
 
 .failing-label {
@@ -449,6 +545,164 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
   50%       { opacity: .3; transform: scale(.75);  }
 }
 
+/* ── Enrichable zone — all matched categories, showing served data ── */
+.enrichable-zone {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.enrichable-label {
+  border-bottom: 1px solid var(--border);
+
+  svg { color: var(--amber); flex-shrink: 0; }
+  span { color: var(--text-secondary); }
+}
+
+.enrichable-accordion {
+  .sub-header:hover { background: color-mix(in srgb, var(--accent) 2%, transparent); }
+}
+
+/* ── Enrichable flat table ── */
+.enrichable-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  th {
+    text-align: left;
+    padding: 7px 16px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-primary) 3%, var(--surface));
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    &.e-th-r { text-align: right; }
+  }
+
+  .e-row {
+    cursor: pointer;
+    background: var(--surface);
+
+    td {
+      padding: 10px 16px;
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+      vertical-align: middle;
+      transition: background .12s;
+    }
+
+    &.e-row-alt td { background: color-mix(in srgb, var(--text-primary) 2%, var(--surface)); }
+    &:hover td     { background: color-mix(in srgb, var(--accent) 4%, transparent) !important; }
+    &.expanded td  { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+    &:last-child:not(.expanded) td { border-bottom: none; }
+  }
+
+  .e-cat { font-weight: 600; color: var(--text-primary); }
+  .e-num { text-align: right; }
+
+  /* Separator row between enrichable and failing sections */
+  .e-separator-row td {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 16px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: color-mix(in srgb, var(--red) 65%, var(--text-secondary));
+    background: color-mix(in srgb, var(--red) 5%, var(--surface));
+    border-top: 2px solid color-mix(in srgb, var(--red) 18%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--red) 14%, transparent);
+
+    .zone-label-dl-btn { margin-left: auto; }
+    .zone-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); flex-shrink: 0; animation: zone-pulse 2.2s ease-in-out infinite; }
+  }
+
+  /* Failing rows get a faint red wash to distinguish them */
+  .e-row-failing td { background: color-mix(in srgb, var(--red) 3%, var(--surface)); }
+  .e-row-failing.e-row-alt td { background: color-mix(in srgb, var(--red) 5%, var(--surface)); }
+  .e-row-failing:hover td { background: color-mix(in srgb, var(--red) 8%, transparent) !important; }
+
+  .e-detail-cell {
+    padding: 0;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg) 60%, var(--surface));
+
+    .sub-content {
+      margin-left: 0;
+      max-height: 260px;
+      overflow-y: auto;
+      overflow-x: auto;
+    }
+  }
+}
+
+/* ── Per-group detail toolbar (download button above content rows) ── */
+.group-detail-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 80%, var(--surface));
+}
+
+.group-dl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+
+  &:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-light); }
+  &.downloading { opacity: .5; cursor: default; pointer-events: none; }
+}
+
+/* ── Zone label download button (enrichable + failing label rows) ── */
+.zone-label-dl-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: .6;
+  transition: opacity .15s, background .15s, border-color .15s;
+
+  &:hover { opacity: 1; background: var(--surface); border-color: var(--border); }
+  &.downloading { opacity: .4; cursor: default; pointer-events: none; }
+  .spinner { width: 10px; height: 10px; border-width: 1.5px; }
+}
+
+.enrichable-tag {
+  border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent) !important;
+  background: color-mix(in srgb, var(--amber) 9%, transparent) !important;
+  color: color-mix(in srgb, var(--amber) 90%, #000) !important;
+}
+
+
+/* Served count cell inside enrichable drill-down table */
+.enrichable-served {
+  color: var(--amber);
+  font-weight: 600;
+}
+
 /* ── Healthy zone ── */
 .healthy-zone {
   background: color-mix(in srgb, var(--green) 6%, var(--bg));
@@ -464,7 +718,7 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
 
 .healthy-row {
   display: grid;
-  grid-template-columns: 1fr $col-count-w $col-pct-w $col-req-w $col-chev-w;
+  grid-template-columns: 1fr $col-count-w $col-pct-w $col-chev-w;
   column-gap: $col-gap;
   align-items: center;
   padding: 8px $row-h-pad 8px ($row-h-pad + $icon-slot);
@@ -563,6 +817,21 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
 
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: color-mix(in srgb, var(--accent) 3%, transparent); }
+}
+
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+  &:hover { color: var(--text-primary); }
+}
+
+.sort-icon {
+  flex-shrink: 0;
+  transition: transform .18s;
+  &.asc { transform: rotate(180deg); }
 }
 
 .sub-table {

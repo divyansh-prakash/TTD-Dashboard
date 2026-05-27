@@ -2,16 +2,26 @@
 @if (!loading() && platforms().length > 0) {
   <div class="summary-bar">
     <div class="stat-chip">
-      <span class="stat-label">Platforms affected</span>
-      <span class="stat-value">{{ platforms().length }}</span>
+      <span class="stat-label">Total Requests</span>
+      <span class="stat-value">{{ formatNumber(totalRequests()) }}</span>
     </div>
     <div class="stat-chip">
-      <span class="stat-label">Failed content IDs</span>
-      <span class="stat-value red">{{ formatNumber(totalFailed()) }}</span>
+      <span class="stat-label">Success Rate</span>
+      <span class="stat-value green">{{ successRate().toFixed(1) }}%</span>
     </div>
     <div class="stat-chip">
-      <span class="stat-label">Total requests at risk</span>
-      <span class="stat-value red">{{ formatNumber(totalAtRisk()) }}</span>
+      <span class="stat-label">Failure Rate</span>
+      <span class="stat-value red">{{ failureRate().toFixed(1) }}%</span>
+      <span class="stat-sub red">{{ formatNumber(totalAtRisk()) }} reqs</span>
+    </div>
+    <div class="stat-chip">
+      <span class="stat-label">Platforms at Risk</span>
+      <span class="stat-value">{{ platformsAtRisk() }}</span>
+      <span class="stat-sub">of {{ platforms().length }}</span>
+    </div>
+    <div class="stat-chip">
+      <span class="stat-label">Enrichable Segments</span>
+      <span class="stat-value amber">{{ enrichableCount() }}</span>
     </div>
     @if (meta()) {
       <span class="meta-range">{{ meta()!.dateFrom }} → {{ meta()!.dateTo }}</span>
@@ -50,47 +60,57 @@
 
 <!-- Platform Cards -->
 @if (!loading() && !error()) {
+  @if (platforms().length > 0) {
+    <div class="col-header-band">
+      <span class="th-col">Platform</span>
+      <span class="th-col th-r">Total Requests</span>
+      <span class="th-col th-r">Success % / Fail %</span>
+      <span></span>
+    </div>
+  }
   <div class="platform-list">
     @for (platform of platforms(); track platform.name) {
       <div class="platform-card" [class.others-card]="platform.name === 'Others'">
 
         <!-- Platform Header — grid: [name 1fr] [count] [pct] [req] [chevron] -->
-        <div class="platform-header" (click)="togglePlatform(platform)">
-          <div class="ph-name-area">
-            <div class="platform-icon" [class.others-icon]="platform.name === 'Others'">
-              @if (platform.name === 'Others') {
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              } @else {
-                {{ platform.name.charAt(0) }}
-              }
-            </div>
-            <div class="ph-name-wrap">
-              <span class="platform-name">{{ platform.name }}</span>
-              @if (platform.name === 'Others') {
-                <span class="platform-sub">Unrecognized bundle IDs</span>
-              }
-            </div>
-            @if (platform.name !== 'Others') {
-              <button
-                class="download-btn"
-                [class.downloading]="downloadingPlatforms().has(platform.name)"
-                (click)="downloadPlatform(platform, $event)"
-                title="Download failed content IDs as CSV">
-                @if (downloadingPlatforms().has(platform.name)) {
-                  <div class="spinner sm"></div>
+        <div class="platform-row">
+          <div class="platform-header" (click)="togglePlatform(platform)">
+            <div class="ph-name-area">
+              <div class="platform-icon" [class.others-icon]="platform.name === 'Others'">
+                @if (platform.name === 'Others') {
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                 } @else {
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  {{ platform.name.charAt(0) }}
                 }
-              </button>
+              </div>
+              <div class="ph-name-wrap">
+                <span class="platform-name">{{ platform.name }}</span>
+                @if (platform.name === 'Others') {
+                  <span class="platform-sub">Unrecognized bundle IDs</span>
+                }
+              </div>
+            </div>
+            <div class="col-count">
+              <span class="col-num">{{ formatNumber(platform.totalRequests) }}</span>
+              <span class="col-lbl">total reqs</span>
+            </div>
+            <div class="col-pct-wrap" [title]="formatExact(platform.totalRequestsAtRisk) + ' failed / ' + formatExact(platform.totalRequests) + ' total'">
+              <span class="col-pct">{{ formatPct(platformServed(platform), platform.totalRequests) }}</span>
+              <span class="col-pct-sub">{{ formatPct(platform.totalRequestsAtRisk, platform.totalRequests) }}</span>
+            </div>
+            <svg class="chevron" [class.open]="platform.expanded" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <button
+            class="row-end-dl-btn"
+            [class.downloading]="downloadingPlatforms().has(platform.name)"
+            (click)="downloadAll(platform, $event)"
+            title="Download all data (served + failed)">
+            @if (downloadingPlatforms().has(platform.name)) {
+              <div class="spinner sm"></div>
+            } @else {
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             }
-          </div>
-          <div class="col-count">
-            <span class="col-num">{{ formatNumber(platform.failedCount) }}</span>
-            <span class="col-lbl">content IDs</span>
-          </div>
-          <span class="col-pct">{{ formatPct(platform.totalRequestsAtRisk, totalAtRisk()) }}</span>
-          <span class="col-req" [class.others-risk]="platform.name === 'Others'">{{ formatNumber(platform.totalRequestsAtRisk) }}</span>
-          <svg class="chevron" [class.open]="platform.expanded" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
         </div>
 
         <!-- Expanded Content -->
@@ -167,84 +187,249 @@
 <ng-template #subAccordionList let-platform>
   <div class="sub-accordion-list">
 
-    <!-- ── Failing zone ── -->
-    <div class="failing-zone">
-      @if ((platform.healthyGroups || []).length > 0) {
-        <div class="zone-label failing-label">
-          <span class="zone-dot"></span>
-          <span>Failing</span>
-        </div>
-      }
-      @for (group of platform.matchedByGroups || []; track group.matchedBy) {
-        <div class="sub-accordion" [class.expanded]="group.expanded">
+    @if (enrichableGroups(platform).length > 0 || failingGroups(platform).length > 0) {
+      <div class="enrichable-zone">
+        <table class="enrichable-table">
+          <thead>
+            <tr>
+              <th>Matched By</th>
+              <th class="e-th-r">Requests</th>
+              <th class="e-th-r">%</th>
+              <th style="width:36px"></th>
+              <th style="width:28px"></th>
+            </tr>
+          </thead>
+          <tbody>
 
-          <!-- Sub-header — same grid columns, indented by icon-slot so tag aligns with platform name -->
-          <button class="sub-header" (click)="toggleMatchedByGroup(platform.name, group.matchedBy)">
-            <span class="sub-tag">{{ formatMatchedBy(group.matchedBy) }}</span>
-            <div class="col-count">
-              <span class="col-num">{{ formatNumber(group.failedCount) }}</span>
-              <span class="col-lbl">content IDs</span>
-            </div>
-            <span class="col-pct">{{ formatPct(group.totalRequestsAtRisk, platform.totalRequestsAtRisk) }}</span>
-            <span class="col-req">{{ formatNumber(group.totalRequestsAtRisk) }}</span>
-            <svg class="chevron sm" [class.open]="group.expanded" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-
-          @if (group.expanded) {
-            @if (group.detailLoading && !group.rows.length) {
-              <div class="detail-loading sub-rows-loading">
-                <div class="spinner sm"></div>
-                <span>Loading rows…</span>
-              </div>
-            } @else {
-              <div class="sub-content" (scroll)="onGroupScroll($event, platform.name, group.matchedBy)">
-                <table class="content-table sub-table">
-                  <thead><tr><th>Content ID</th><th>Bundle ID</th><th>Channel</th><th>Requests at Risk</th><th>Root Causes</th></tr></thead>
-                  <tbody>
-                    @for (row of group.rows; track row.id) {
-                      <tr>
-                        <td class="mono cell-truncate" [title]="row.contentId">{{ row.contentId || '—' }}</td>
-                        <td class="mono dim cell-truncate" [title]="row.bundleId">{{ row.bundleId || '—' }}</td>
-                        <td>{{ row.channel || '—' }}</td>
-                        <td class="mono red">{{ formatNumber(row.requestsAtRisk) }}</td>
-                        <td>@for (c of row.rootCauses; track c) {<span class="badge" [class]="'badge-' + c.toLowerCase().replace(' ', '-')">{{ c }}</span>}</td>
-                      </tr>
+            <!-- ── Enrichable rows: served requests by matched segment ── -->
+            @for (group of enrichableGroups(platform); track group.matchedBy; let i = $index) {
+              <tr class="e-row" [class.e-row-alt]="i % 2 === 1" [class.expanded]="group.expanded"
+                  (click)="toggleMatchedByGroup(platform.name, group.matchedBy)">
+                <td class="e-cat">{{ formatEnrichableCategory(group.matchedBy, platform.name) }}</td>
+                <td class="mono e-num">{{ formatNumber(group.totalRequestsServed || 0) }}</td>
+                <td class="mono e-num">{{ formatPct(group.totalRequestsServed || 0, platform.totalRequests) }}</td>
+                <td>
+                  <button class="e-row-dl-btn"
+                    [class.downloading]="downloadingGroups().has(platform.name + ':' + group.matchedBy)"
+                    (click)="downloadGroup(platform, group, $event)"
+                    title="Download all served requests for this segment">
+                    @if (downloadingGroups().has(platform.name + ':' + group.matchedBy)) {
+                      <div class="spinner sm"></div>
+                    } @else {
+                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     }
-                  </tbody>
-                </table>
-                @if (group.detailLoadingMore) {
-                  <div class="detail-loading sub-rows-loading">
-                    <div class="spinner sm"></div>
-                    <span>Loading more…</span>
-                  </div>
-                }
-              </div>
+                  </button>
+                </td>
+                <td>
+                  <svg class="chevron sm" [class.open]="group.expanded" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </td>
+              </tr>
+              @if (group.expanded) {
+                <tr class="e-detail-row">
+                  <td colspan="5" class="e-detail-cell">
+                    @if (group.detailLoading && !group.rows.length) {
+                      <div class="detail-loading"><div class="spinner sm"></div><span>Loading rows…</span></div>
+                    } @else {
+                      <div class="sub-content" (scroll)="onGroupScroll($event, platform.name, group.matchedBy)">
+                        <table class="content-table sub-table">
+                          <thead>
+                            <tr>
+                              <th>Content ID</th><th>Bundle ID</th><th>Channel</th>
+                              <th>
+                                <span class="th-sort" (click)="toggleGroupSort(platform.name, group.matchedBy, $event)">
+                                  Requests Served
+                                  <svg class="sort-icon" [class.asc]="group.sortDesc === false" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                                </span>
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (row of sortedRows(group); track row.id) {
+                              <tr>
+                                <td class="mono cell-truncate" [title]="row.contentId">{{ row.contentId || '—' }}</td>
+                                <td class="mono dim cell-truncate" [title]="row.bundleId">{{ row.bundleId || '—' }}</td>
+                                <td>{{ row.channel || '—' }}</td>
+                                <td class="mono enrichable-served">{{ formatNumber(row.requestsAtRisk) }}</td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                        @if (group.detailLoadingMore) {
+                          <div class="detail-loading sub-rows-loading"><div class="spinner sm"></div><span>Loading more…</span></div>
+                        }
+                      </div>
+                    }
+                  </td>
+                </tr>
+              }
             }
+
+            <!-- ── Unmatched rows: failed requests with no segment match ── -->
+            @for (group of failingGroups(platform); track group.matchedBy; let i = $index) {
+              <tr class="e-row e-row-failing"
+                  [class.e-row-alt]="(enrichableGroups(platform).length + i) % 2 === 1"
+                  [class.expanded]="group.expanded"
+                  (click)="toggleMatchedByGroup(platform.name, group.matchedBy)">
+                <td class="e-cat">Unmatched</td>
+                <td class="mono e-num red">{{ formatNumber(group.totalRequestsAtRisk) }}</td>
+                <td class="mono e-num red">{{ formatPct(group.totalRequestsAtRisk, platform.totalRequests) }}</td>
+                <td>
+                  <button class="e-row-dl-btn"
+                    [class.downloading]="downloadingZones().has(platform.name + ':failed')"
+                    (click)="downloadFailed(platform, $event)"
+                    title="Download all unmatched failed requests">
+                    @if (downloadingZones().has(platform.name + ':failed')) {
+                      <div class="spinner sm"></div>
+                    } @else {
+                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    }
+                  </button>
+                </td>
+                <td>
+                  <svg class="chevron sm" [class.open]="group.expanded" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </td>
+              </tr>
+              @if (group.expanded) {
+                <tr class="e-detail-row">
+                  <td colspan="5" class="e-detail-cell">
+                    @if (group.detailLoading && !group.rows.length) {
+                      <div class="detail-loading"><div class="spinner sm"></div><span>Loading rows…</span></div>
+                    } @else {
+                      <div class="sub-content" (scroll)="onGroupScroll($event, platform.name, group.matchedBy)">
+                        <table class="content-table sub-table">
+                          <thead>
+                            <tr>
+                              <th>Content ID</th><th>Bundle ID</th><th>Channel</th>
+                              <th>
+                                <span class="th-sort" (click)="toggleGroupSort(platform.name, group.matchedBy, $event)">
+                                  Requests at Risk
+                                  <svg class="sort-icon" [class.asc]="group.sortDesc === false" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                                </span>
+                              </th>
+                              <th>Root Causes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (row of sortedRows(group); track row.id) {
+                              <tr>
+                                <td class="mono cell-truncate" [title]="row.contentId">{{ row.contentId || '—' }}</td>
+                                <td class="mono dim cell-truncate" [title]="row.bundleId">{{ row.bundleId || '—' }}</td>
+                                <td>{{ row.channel || '—' }}</td>
+                                <td class="mono red">{{ formatNumber(row.requestsAtRisk) }}</td>
+                                <td>@for (c of row.rootCauses; track c) {<span class="badge" [class]="'badge-' + c.toLowerCase().replace(' ', '-')">{{ c }}</span>}</td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                        @if (group.detailLoadingMore) {
+                          <div class="detail-loading sub-rows-loading"><div class="spinner sm"></div><span>Loading more…</span></div>
+                        }
+                      </div>
+                    }
+                  </td>
+                </tr>
+              }
+            }
+
+          </tbody>
+        </table>
+      </div>
+    }
+
+  </div>
+</ng-template>
+
+<!-- Shared sub-accordion row (used by both failing and enrichable zones) -->
+<ng-template #subAccordionRow let-group let-platform="platform">
+  <div class="sub-accordion" [class.expanded]="group.expanded" [class.enrichable-accordion]="group.enrichable">
+    <button class="sub-header" (click)="toggleMatchedByGroup(platform.name, group.matchedBy)">
+      <span class="sub-tag" [class.enrichable-tag]="group.enrichable">{{ formatMatchedBy(group.matchedBy) }}</span>
+      <div class="col-count">
+        <span class="col-num">{{ formatNumber(group.enrichable ? (group.totalRequestsServed || 0) : group.totalRequestsAtRisk) }}</span>
+        @if (group.enrichable && (group.totalRequestsAtRisk ?? 0) > 0) {
+          <span class="col-lbl col-lbl-red">{{ formatNumber(group.totalRequestsAtRisk) }} blacklisted</span>
+        } @else {
+          <span class="col-lbl">{{ group.enrichable ? 'served' : 'failed' }}</span>
+        }
+      </div>
+      @if (group.enrichable) {
+        <div class="col-pct-wrap">
+          <span class="col-pct">{{ formatPct(group.totalRequestsServed || 0, platform.totalRequests) }}</span>
+          @if ((group.totalRequestsAtRisk ?? 0) > 0) {
+            <span class="col-pct-sub">{{ formatPct(group.totalRequestsAtRisk, platform.totalRequests) }}</span>
+          }
+        </div>
+      } @else {
+        <span class="col-pct">{{ formatPct(group.totalRequestsAtRisk, platform.totalRequests) }}</span>
+      }
+      <svg class="chevron sm" [class.open]="group.expanded" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+
+    @if (group.expanded) {
+      @if (group.detailLoading && !group.rows.length) {
+        <div class="detail-loading sub-rows-loading">
+          <div class="spinner sm"></div>
+          <span>Loading rows…</span>
+        </div>
+      } @else {
+        <div class="sub-content" (scroll)="onGroupScroll($event, platform.name, group.matchedBy)">
+          <table class="content-table sub-table">
+            @if (group.enrichable) {
+              <thead>
+                <tr>
+                  <th>Content ID</th><th>Bundle ID</th><th>Channel</th>
+                  <th>
+                    <span class="th-sort" (click)="toggleGroupSort(platform.name, group.matchedBy, $event)">
+                      Requests Served
+                      <svg class="sort-icon" [class.asc]="group.sortDesc === false" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                    </span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of sortedRows(group); track row.id) {
+                  <tr>
+                    <td class="mono cell-truncate" [title]="row.contentId">{{ row.contentId || '—' }}</td>
+                    <td class="mono dim cell-truncate" [title]="row.bundleId">{{ row.bundleId || '—' }}</td>
+                    <td>{{ row.channel || '—' }}</td>
+                    <td class="mono enrichable-served">{{ formatNumber(row.requestsAtRisk) }}</td>
+                  </tr>
+                }
+              </tbody>
+            } @else {
+              <thead>
+                <tr>
+                  <th>Content ID</th><th>Bundle ID</th><th>Channel</th>
+                  <th>
+                    <span class="th-sort" (click)="toggleGroupSort(platform.name, group.matchedBy, $event)">
+                      Requests at Risk
+                      <svg class="sort-icon" [class.asc]="group.sortDesc === false" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                    </span>
+                  </th>
+                  <th>Root Causes</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of sortedRows(group); track row.id) {
+                  <tr>
+                    <td class="mono cell-truncate" [title]="row.contentId">{{ row.contentId || '—' }}</td>
+                    <td class="mono dim cell-truncate" [title]="row.bundleId">{{ row.bundleId || '—' }}</td>
+                    <td>{{ row.channel || '—' }}</td>
+                    <td class="mono red">{{ formatNumber(row.requestsAtRisk) }}</td>
+                    <td>@for (c of row.rootCauses; track c) {<span class="badge" [class]="'badge-' + c.toLowerCase().replace(' ', '-')">{{ c }}</span>}</td>
+                  </tr>
+                }
+              </tbody>
+            }
+          </table>
+          @if (group.detailLoadingMore) {
+            <div class="detail-loading sub-rows-loading">
+              <div class="spinner sm"></div>
+              <span>Loading more…</span>
+            </div>
           }
         </div>
       }
-    </div>
-
-    <!-- ── Healthy zone ── -->
-    @if ((platform.healthyGroups || []).length > 0) {
-      <div class="healthy-zone">
-        <div class="zone-label healthy-label">
-          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-          <span>Healthy — 100% serving</span>
-        </div>
-        @for (hg of platform.healthyGroups || []; track hg.matchedBy) {
-          <div class="healthy-row">
-            <span class="healthy-tag">{{ formatMatchedBy(hg.matchedBy) }}</span>
-            <div class="col-count">
-              <span class="col-num healthy-num">{{ formatExact(hg.totalRequestsServed) }}</span>
-              <span class="col-lbl healthy-lbl">req served</span>
-            </div>
-            <span class="col-pct healthy-pct">{{ formatPct(hg.totalRequestsServed, platform.totalRequestsAtRisk + totalHealthyServed(platform)) }}</span>
-            <span class="healthy-req">{{ formatExact(hg.totalRequestsServed) }}</span>
-            <span class="healthy-dash">—</span>
-          </div>
-        }
-      </div>
     }
   </div>
 </ng-template>

@@ -29,7 +29,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   filters: FailureQueueFilters = {
     dateFrom:  this.nDaysAgo(1),
     dateTo:    this.nDaysAgo(1),
-    platforms: ['Roku'],
+    platforms: [],
     channel:   '',
     brandSafe: 'all',
   };

@@ -1,18 +1,15 @@
 const {
-  getFailedUrlChannelTotals,
+  getCtvFailedAgg,
+  getCtvTotalAgg,
   getFailedContentRowsByUrls,
   getAllFailedContentRowsByUrls,
+  getAllFailedContentRowsExcludingUrls,
   getFailedContentRowsExcludingUrls,
-  getOthersChannelTotals,
-  getOthersTopUrls,
-  getTopFailedUrls,
+  getServedContentRowsByUrls,
+  getAllServedContentRowsByUrls,
+  getServedContentRowsExcludingUrls,
+  getAllServedContentRowsExcludingUrls,
   getHealthyCategoryTotals,
-  getDailyTotals,
-  getDailyTotalsByUrls,
-  getHourlyTotals,
-  getDailyTotalAllRequests,
-  getHourlyTotalAllRequests,
-  getDailyTotalsByUrlsAll,
 } = require('../repositories/ctvStats.repo');
 const { getAllPlatformUrlMappings, getDistinctPlatforms } = require('../repositories/platformUrlMap.repo');
 const { toFailedRow } = require('../models/failure-queue');
@@ -42,14 +39,30 @@ async function getByPlatform({ dateFrom, dateTo, platformList, channel, brandSaf
   const mappedUrls = Array.from(urlMap.keys());
   const includeOthers = !platformList.length;
 
-  const [urlRows, othersMatchedRows, othersTopUrlRows, healthyRows] = await Promise.all([
-    getFailedUrlChannelTotals({ dateFrom, dateTo, brandSafe, urls: mappedUrls }),
-    includeOthers ? getOthersChannelTotals({ dateFrom, dateTo, brandSafe, excludeUrls: mappedUrls }) : Promise.resolve([]),
-    includeOthers ? getOthersTopUrls({ dateFrom, dateTo, brandSafe, excludeUrls: mappedUrls, limit: 100 }) : Promise.resolve([]),
-    getHealthyCategoryTotals({ dateFrom, dateTo, brandSafe, urls: mappedUrls }),
+  // Scope the healthy query to only the selected platform's URLs when a filter
+  // is active — avoids scanning all 270+ mapped URLs for success=1 rows.
+  const healthyUrls = platformList.length
+    ? [...urlMap.entries()].filter(([, p]) => platformList.includes(p.toLowerCase())).map(([url]) => url)
+    : mappedUrls;
+
+  const [urlRows, othersMatchedRows, othersTopUrlRows, healthyRows, totalUrlRows] = await Promise.all([
+    getCtvFailedAgg({ dateFrom, dateTo, brandSafe, urls: mappedUrls, groupBy: 'url,matchedby' }),
+    includeOthers ? getCtvFailedAgg({ dateFrom, dateTo, brandSafe, excludeUrls: mappedUrls, groupBy: 'matchedby' }) : Promise.resolve([]),
+    includeOthers ? getCtvFailedAgg({ dateFrom, dateTo, brandSafe, excludeUrls: mappedUrls, groupBy: 'url', limit: 100 }) : Promise.resolve([]),
+    getHealthyCategoryTotals({ dateFrom, dateTo, brandSafe, urls: healthyUrls }),
+    getCtvTotalAgg({ dateFrom, dateTo, brandSafe, urls: mappedUrls, groupBy: 'url' }),
   ]);
 
-  console.log(`[SVC:failure-queue] phase1 urlRows=${urlRows.length} othersMatchedRows=${othersMatchedRows.length} othersTopUrls=${othersTopUrlRows.length} healthyRows=${healthyRows.length}`);
+  console.log(`[SVC:failure-queue] phase1 urlRows=${urlRows.length} othersMatchedRows=${othersMatchedRows.length} othersTopUrls=${othersTopUrlRows.length} healthyRows=${healthyRows.length} totalUrlRows=${totalUrlRows.length}`);
+
+  // Build per-platform total requests map (success=0+1)
+  const platformTotalMap = {};
+  for (const row of totalUrlRows) {
+    const appName = urlMap.get(row.url);
+    if (!appName) continue;
+    if (platformList.length && !platformList.includes(appName.toLowerCase())) continue;
+    platformTotalMap[appName] = (platformTotalMap[appName] || 0) + Number(row.req_total);
+  }
 
   const platformMap = {};
 
@@ -62,7 +75,7 @@ async function getByPlatform({ dateFrom, dateTo, platformList, channel, brandSaf
     if (channel !== 'all' && (row.channel || '').toLowerCase() !== channel.toLowerCase()) continue;
 
     if (!platformMap[appName]) {
-      platformMap[appName] = { name: appName, failedCount: 0, totalRequestsAtRisk: 0, rows: [], matchedByMap: {} };
+      platformMap[appName] = { name: appName, failedCount: 0, totalRequestsAtRisk: 0, totalRequests: 0, rows: [], matchedByMap: {} };
     }
     platformMap[appName].failedCount         += contentCount;
     platformMap[appName].totalRequestsAtRisk += reqTotal;
@@ -116,7 +129,14 @@ async function getByPlatform({ dateFrom, dateTo, platformList, channel, brandSaf
         .filter(([mb]) => !failingKeys.has(mb))
         .map(([matchedBy, totalRequestsServed]) => ({ matchedBy, totalRequestsServed }))
         .sort((a, b) => b.totalRequestsServed - a.totalRequestsServed);
-      return { ...rest, matchedByGroups: sortMatchedByGroups(matchedByMap), healthyGroups };
+      const matchedByGroups = sortMatchedByGroups(matchedByMap).map(group => {
+        if (group.matchedBy && group.matchedBy !== 'Unmatched') {
+          const served = healthyMap[group.matchedBy] || 0;
+          return { ...group, totalRequestsServed: served };
+        }
+        return group;
+      });
+      return { ...rest, matchedByGroups, healthyGroups, totalRequests: platformTotalMap[p.name] || 0 };
     })
     .sort((a, b) => {
       if (a.name === 'Others') return 1;
@@ -131,8 +151,8 @@ async function getByPlatform({ dateFrom, dateTo, platformList, channel, brandSaf
   };
 }
 
-async function getByPlatformDetail({ platform, dateFrom, dateTo, brandSafe, matchedBy, limit, offset }) {
-  console.log(`[SVC:failure-queue] getByPlatformDetail platform=${platform} matchedBy=${matchedBy} limit=${limit} offset=${offset}`);
+async function getByPlatformDetail({ platform, dateFrom, dateTo, brandSafe, matchedBy, enrichable, limit, offset }) {
+  console.log(`[SVC:failure-queue] getByPlatformDetail platform=${platform} matchedBy=${matchedBy} enrichable=${enrichable} limit=${limit} offset=${offset}`);
 
   const urlMap = await getAllPlatformUrlMappings();
   const filters = { dateFrom, dateTo, brandSafe };
@@ -140,13 +160,17 @@ async function getByPlatformDetail({ platform, dateFrom, dateTo, brandSafe, matc
 
   if (platform === 'Others') {
     const mappedUrls = Array.from(urlMap.keys());
-    rawRows = await getFailedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, matchedBy, limit, offset });
+    rawRows = enrichable
+      ? await getServedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, matchedBy, limit, offset })
+      : await getFailedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, matchedBy, limit, offset });
   } else {
     const platformUrls = [...urlMap.entries()]
       .filter(([, p]) => p.toLowerCase() === platform.toLowerCase())
       .map(([url]) => url);
     if (!platformUrls.length) return { rows: [], meta: { offset, limit, hasMore: false } };
-    rawRows = await getFailedContentRowsByUrls({ ...filters, urls: platformUrls, matchedBy, limit, offset });
+    rawRows = enrichable
+      ? await getServedContentRowsByUrls({ ...filters, urls: platformUrls, matchedBy, limit, offset })
+      : await getFailedContentRowsByUrls({ ...filters, urls: platformUrls, matchedBy, limit, offset });
   }
 
   const rows = rawRows.map(toFailedRow);
@@ -165,14 +189,24 @@ async function getTrend({ dateFrom, dateTo, platform, brandSafe }) {
 
   console.log(`[SVC:failure-queue] getTrend dateFrom=${dateFrom} dateTo=${dateTo} platform=${platform} branch=${isSingleDay ? 'hourly' : isPlatformFiltered ? 'daily-by-platform' : 'daily-all'}`);
 
+  // Resolve platform URLs once — used for both hourly and daily platform-scoped queries.
+  let platformUrls = [];
+  if (isPlatformFiltered) {
+    const urlMap = await getAllPlatformUrlMappings();
+    platformUrls = [...urlMap.entries()]
+      .filter(([, p]) => p.toLowerCase() === platform.toLowerCase())
+      .map(([url]) => url);
+    if (!platformUrls.length) return { dates: [], series: [], granularity: isSingleDay ? 'hourly' : 'daily' };
+  }
+
   if (isSingleDay) {
     const [failedRows, totalRows] = await Promise.all([
-      getHourlyTotals({ date: dateFrom, brandSafe }),
-      getHourlyTotalAllRequests({ date: dateFrom, brandSafe }),
+      getCtvFailedAgg({ dateFrom, dateTo: dateFrom, brandSafe, urls: platformUrls, groupBy: 'hour' }),
+      getCtvTotalAgg({ dateFrom, dateTo: dateFrom, brandSafe, urls: platformUrls, groupBy: 'hour' }),
     ]);
     const labels    = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`);
-    const failData  = labels.map((_, h) => Number(failedRows.find(r => Number(r.hour) === h)?.req_total  || 0));
-    const totalData = labels.map((_, h) => Number(totalRows.find( r => Number(r.hour) === h)?.req_total  || 0));
+    const failData  = labels.map((_, h) => Number(failedRows.find(r => Number(r.hour) === h)?.req_total || 0));
+    const totalData = labels.map((_, h) => Number(totalRows.find( r => Number(r.hour) === h)?.req_total || 0));
     const name = isPlatformFiltered ? platform : 'All Platforms';
     return {
       dates: labels,
@@ -181,34 +215,9 @@ async function getTrend({ dateFrom, dateTo, platform, brandSafe }) {
     };
   }
 
-  if (!isPlatformFiltered) {
-    const [failedRows, totalRows] = await Promise.all([getDailyTotals(filters), getDailyTotalAllRequests(filters)]);
-    const dates   = Array.from(new Set([...failedRows.map(r => r.date), ...totalRows.map(r => r.date)])).sort();
-    const failMap = Object.fromEntries(failedRows.map(r => [r.date, Number(r.req_total)]));
-    const totMap  = Object.fromEntries(totalRows.map( r => [r.date, Number(r.req_total)]));
-    return {
-      dates,
-      series: [
-        { name: 'Failed Requests', data: dates.map(d => failMap[d] || 0) },
-        { name: 'Total Requests',  data: dates.map(d => totMap[d]  || 0) },
-      ],
-      granularity: 'daily',
-    };
-  }
-
-  const [urlMap, topUrls] = await Promise.all([
-    getAllPlatformUrlMappings(),
-    getTopFailedUrls({ ...filters, limit: 50 }),
-  ]);
-  const platformUrls = topUrls
-    .map(r => r.url)
-    .filter(url => (urlMap.get(url) || '').toLowerCase() === platform.toLowerCase());
-
-  if (!platformUrls.length) return { dates: [], series: [], granularity: 'daily' };
-
   const [failedRows, totalRows] = await Promise.all([
-    getDailyTotalsByUrls({ ...filters, urls: platformUrls }),
-    getDailyTotalsByUrlsAll({ ...filters, urls: platformUrls }),
+    getCtvFailedAgg({ ...filters, urls: platformUrls, groupBy: 'date' }),
+    getCtvTotalAgg({ ...filters, urls: platformUrls, groupBy: 'date' }),
   ]);
   const dates   = Array.from(new Set([...failedRows.map(r => r.date), ...totalRows.map(r => r.date)])).sort();
   const failMap = {};
@@ -216,37 +225,62 @@ async function getTrend({ dateFrom, dateTo, platform, brandSafe }) {
   const totMap  = {};
   for (const row of totalRows)  totMap[row.date]  = (totMap[row.date]  || 0) + Number(row.req_total);
 
+  const name = isPlatformFiltered ? platform : 'All Platforms';
   return {
     dates,
     series: [
-      { name: `${platform} — Failed`, data: dates.map(d => failMap[d] || 0) },
-      { name: `${platform} — Total`,  data: dates.map(d => totMap[d]  || 0) },
+      { name: `${name} — Failed`, data: dates.map(d => failMap[d] || 0) },
+      { name: `${name} — Total`,  data: dates.map(d => totMap[d]  || 0) },
     ],
     granularity: 'daily',
   };
 }
 
-async function downloadPlatformCsv({ platform, dateFrom, dateTo, brandSafe }) {
-  console.log(`[SVC:failure-queue] downloadPlatformCsv platform=${platform} dateFrom=${dateFrom} dateTo=${dateTo}`);
-  const urlMap = await getAllPlatformUrlMappings();
-  const platformUrls = [...urlMap.entries()]
+async function downloadCsv({ platform, dateFrom, dateTo, brandSafe, type = 'failed', matchedBy = '' }) {
+  console.log(`[SVC:failure-queue] downloadCsv platform=${platform} dateFrom=${dateFrom} dateTo=${dateTo} type=${type} matchedBy=${matchedBy}`);
+  const urlMap     = await getAllPlatformUrlMappings();
+  const isOthers   = platform.toLowerCase() === 'others';
+  const mappedUrls = Array.from(urlMap.keys());
+  const platformUrls = isOthers ? [] : [...urlMap.entries()]
     .filter(([, p]) => p.toLowerCase() === platform.toLowerCase())
     .map(([url]) => url);
-  if (!platformUrls.length) return '';
 
-  const rows = await getAllFailedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls: platformUrls });
+  if (!isOthers && !platformUrls.length) return '';
 
+  const filters = { dateFrom, dateTo, brandSafe };
   const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const header = 'content_id,bundle_id,channel,requests_at_risk,matched_by\n';
-  const body   = rows.map(r => [
-    esc(r.contentid),
-    esc(r.url),
-    esc(r.channel),
-    r.req_total,
-    esc(r.matchedby || 'Unmatched'),
-  ].join(',')).join('\n');
 
-  return header + body;
+  if (type === 'enrichable') {
+    const rows = isOthers
+      ? await getAllServedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, matchedBy })
+      : await getAllServedContentRowsByUrls({ ...filters, urls: platformUrls, matchedBy });
+    const header = 'content_id,bundle_id,channel,requests_served,matched_by\n';
+    const body   = rows.map(r => [esc(r.contentid), esc(r.url), esc(r.channel), r.req_total, esc(r.matchedby || '')].join(',')).join('\n');
+    return header + body;
+  }
+
+  if (type === 'failed') {
+    const rows = isOthers
+      ? await getAllFailedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, onlyUnmatched: true })
+      : await getAllFailedContentRowsByUrls({ ...filters, urls: platformUrls, onlyUnmatched: true });
+    const header = 'content_id,bundle_id,channel,requests_failed,matched_by\n';
+    const body   = rows.map(r => [esc(r.contentid), esc(r.url), esc(r.channel), r.req_total, esc(r.matchedby || 'Unmatched')].join(',')).join('\n');
+    return header + body;
+  }
+
+  // type === 'all': both success=0 and success=1 rows
+  const [failedRows, servedRows] = await Promise.all([
+    isOthers
+      ? getAllFailedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls })
+      : getAllFailedContentRowsByUrls({ ...filters, urls: platformUrls }),
+    isOthers
+      ? getAllServedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls })
+      : getAllServedContentRowsByUrls({ ...filters, urls: platformUrls }),
+  ]);
+  const header   = 'content_id,bundle_id,channel,requests,matched_by,type\n';
+  const failBody = failedRows.map(r => [esc(r.contentid), esc(r.url), esc(r.channel), r.req_total, esc(r.matchedby || 'Unmatched'), 'failed'].join(','));
+  const servBody = servedRows.map(r => [esc(r.contentid), esc(r.url), esc(r.channel), r.req_total, esc(r.matchedby || ''), 'served'].join(','));
+  return header + [...failBody, ...servBody].join('\n');
 }
 
-module.exports = { getByPlatform, getByPlatformDetail, getFilterOptions, getTrend, downloadPlatformCsv };
+module.exports = { getByPlatform, getByPlatformDetail, getFilterOptions, getTrend, downloadCsv };

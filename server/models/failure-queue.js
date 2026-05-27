@@ -19,7 +19,7 @@ function parseByPlatformQuery(query) {
 // Detail endpoint defaults to a single-day window (yesterday).
 // When only dateFrom is provided, dateTo defaults to the same date.
 function parseDetailQuery(query) {
-  const { platform, dateFrom, dateTo, brandSafe, matchedBy } = query;
+  const { platform, dateFrom, dateTo, brandSafe, matchedBy, enrichable } = query;
   const from = dateFrom || daysAgo(1);
   return {
     platform,
@@ -27,6 +27,7 @@ function parseDetailQuery(query) {
     dateTo:    dateTo    || from,
     brandSafe: brandSafe || 'all',
     matchedBy: matchedBy || '',
+    enrichable: enrichable === 'true',
   };
 }
 
@@ -64,13 +65,15 @@ function toFailedRow(row) {
 }
 
 function parseDownloadQuery(query) {
-  const { platform, dateFrom, dateTo, brandSafe } = query;
+  const { platform, dateFrom, dateTo, brandSafe, type, matchedBy } = query;
   const from = dateFrom || daysAgo(DEFAULT_DAYS);
   return {
     platform:  platform  || '',
     dateFrom:  from,
     dateTo:    dateTo    || today(),
     brandSafe: brandSafe || 'all',
+    type:      type      || 'failed',
+    matchedBy: matchedBy || '',
   };
 }
 

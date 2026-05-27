@@ -19,6 +19,9 @@ export interface MatchedByGroup {
   matchedBy: string;
   failedCount: number;
   totalRequestsAtRisk: number;
+  totalRequestsServed?: number;
+  enrichable?: boolean;
+  sortDesc?: boolean;
   rows: FailedRow[];
   expanded?: boolean;
   detailLoaded?: boolean;
@@ -42,6 +45,7 @@ export interface PlatformGroup {
   name: string;
   failedCount: number;
   totalRequestsAtRisk: number;
+  totalRequests: number;
   rows: FailedRow[];
   urlSummary?: UrlSummary[];
   matchedByGroups?: MatchedByGroup[];
