@@ -7,17 +7,17 @@ import { Subject, takeUntil } from 'rxjs';
 import { ApiService } from '../../../services/api.service';
 import { FailureQueueFilters } from '../../../models/failure-queue.model';
 import {
-  Chart, LineController, LineElement, PointElement,
-  LinearScale, CategoryScale, Filler, Tooltip, Legend,
+  Chart, BarController, BarElement,
+  LinearScale, CategoryScale, Tooltip, Legend,
 } from 'chart.js';
 
-Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip, Legend);
+Chart.register(BarController, BarElement, LinearScale, CategoryScale, Tooltip, Legend);
 
-const LINE_COLORS = [
-  '#ef4444', '#3b82f6', '#f59e0b', '#2d9b6f', '#8b5cf6',
-  '#ec4899', '#06b6d4', '#10b981', '#f97316', '#6366f1',
-];
-const SERIES_COLOR_MAP: Record<string, string> = { failed: '#ef4444', total: '#3b82f6' };
+const BAR_COLORS: Record<string, string> = {
+  total:   '#3b82f6',
+  success: '#2d9b6f',
+  failed:  '#ef4444',
+};
 
 @Component({
   selector: 'app-trend-graph',
@@ -83,43 +83,67 @@ export class TrendGraphComponent implements OnInit, OnChanges, OnDestroy {
     if (!ctx) return;
 
     this.chart?.destroy();
-    const isSingle = series.length === 1;
+
+    // Extract Total and Failed, compute Success = Total - Failed
+    const totalS  = series.find(s => s.name.toLowerCase().includes('total'));
+    const failedS = series.find(s => s.name.toLowerCase().includes('failed'));
+    const label   = this.platformLabel || 'All Platforms';
+
+    const totalData   = totalS?.data  ?? [];
+    const failedData  = failedS?.data ?? [];
+    const successData = totalData.map((t, i) => Math.max(0, t - (failedData[i] ?? 0)));
+
+    const fmtVal = (v: number) =>
+      v >= 1_000_000 ? (v / 1_000_000).toFixed(1) + 'M'
+    : v >= 1_000     ? (v / 1_000).toFixed(1) + 'K'
+    : String(v);
 
     this.chart = new Chart(ctx, {
-      type: 'line',
+      type: 'bar',
       data: {
         labels: dates,
-        datasets: series.map((s, i) => {
-          const key = Object.keys(SERIES_COLOR_MAP).find(k => s.name.toLowerCase().includes(k));
-          const color = key ? SERIES_COLOR_MAP[key] : LINE_COLORS[i % LINE_COLORS.length];
-          return {
-            label: s.name,
-            data: s.data,
-            borderColor: color,
-            backgroundColor: color + '18',
-            borderWidth: 2,
-            pointRadius: granularity === 'hourly' ? 2 : 3,
-            pointHoverRadius: 5,
-            tension: 0.3,
-            fill: true,
-          };
-        }),
+        datasets: [
+          {
+            label: `${label} — Total`,
+            data: totalData,
+            backgroundColor: BAR_COLORS['total'] + 'cc',
+            borderColor: BAR_COLORS['total'],
+            borderWidth: 1,
+            borderRadius: 2,
+            categoryPercentage: 0.9,
+            barPercentage: 1.0,
+          },
+          {
+            label: `${label} — Success`,
+            data: successData,
+            backgroundColor: BAR_COLORS['success'] + 'cc',
+            borderColor: BAR_COLORS['success'],
+            borderWidth: 1,
+            borderRadius: 2,
+            categoryPercentage: 0.9,
+            barPercentage: 1.0,
+          },
+          {
+            label: `${label} — Failed`,
+            data: failedData,
+            backgroundColor: BAR_COLORS['failed'] + 'cc',
+            borderColor: BAR_COLORS['failed'],
+            borderWidth: 1,
+            borderRadius: 2,
+            categoryPercentage: 0.9,
+            barPercentage: 1.0,
+          },
+        ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { display: !isSingle, position: 'top', labels: { boxWidth: 12, font: { size: 12 } } },
+          legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 12 } } },
           tooltip: {
             callbacks: {
-              label: (c) => {
-                const v = c.parsed.y ?? 0;
-                const fmt = v >= 1_000_000 ? (v / 1_000_000).toFixed(1) + 'M'
-                          : v >= 1_000     ? (v / 1_000).toFixed(1) + 'K'
-                          : String(v);
-                return ` ${c.dataset.label}: ${fmt}`;
-              },
+              label: (c) => ` ${c.dataset.label}: ${fmtVal(c.parsed.y ?? 0)}`,
             },
           },
         },
@@ -132,12 +156,7 @@ export class TrendGraphComponent implements OnInit, OnChanges, OnDestroy {
             grid: { color: 'rgba(0,0,0,.04)' },
             ticks: {
               font: { size: 11 },
-              callback: (v) => {
-                const n = Number(v ?? 0);
-                return n >= 1_000_000 ? (n / 1_000_000).toFixed(1) + 'M'
-                     : n >= 1_000     ? (n / 1_000).toFixed(0) + 'K'
-                     : String(n);
-              },
+              callback: (v) => fmtVal(Number(v ?? 0)),
             },
           },
         },

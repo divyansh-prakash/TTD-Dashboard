@@ -53,7 +53,7 @@ function buildAggClauses(groupBy) {
       };
     case 'url':
       return {
-        select:   'url, SUM(total) AS req_total',
+        select:   'url, SUM(total) AS req_total, uniq(contentid) AS content_count',
         group:    'url',
         order:    'req_total DESC',
       };
@@ -173,13 +173,13 @@ async function getFailedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, 
 }
 
 /**
- * Phase-2 enrichable: paginated success=1 rows for a specific set of URLs.
+ * Phase-2 enrichable: paginated success>0 rows for a specific set of URLs.
  * Used when an enrichable (G_/R_/S_) sub-accordion is expanded — shows served content IDs.
  */
 async function getServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, matchedBy, limit = 25, offset = 0 }) {
   console.log(`[REPO:ctvStats] getServedContentRowsByUrls urlCount=${urls.length} matchedBy=${matchedBy} limit=${limit} offset=${offset}`);
   const whereConds = [
-    'success = 1',
+    'success > 0',
     `date >= '${dateFrom}'`,
     `date <= '${dateTo}'`,
     "NOT startsWith(contentid, 'iris')",
@@ -208,12 +208,12 @@ async function getServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, m
 }
 
 /**
- * Phase-2 enrichable for Others: paginated success=1 rows for unmapped URLs.
+ * Phase-2 enrichable for Others: paginated success>0 rows for unmapped URLs.
  */
 async function getServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, excludeUrls, matchedBy, limit = 25, offset = 0 }) {
   console.log(`[REPO:ctvStats] getServedContentRowsExcludingUrls excludeCount=${excludeUrls.length} matchedBy=${matchedBy} limit=${limit} offset=${offset}`);
   const whereConds = [
-    'success = 1',
+    'success > 0',
     `date >= '${dateFrom}'`,
     `date <= '${dateTo}'`,
     "NOT startsWith(contentid, 'iris')",
@@ -295,13 +295,13 @@ async function getAllFailedContentRowsExcludingUrls({ dateFrom, dateTo, brandSaf
 }
 
 /**
- * All served (success=1) content rows for URLs NOT in the platform mapping — no LIMIT, for Others CSV export.
+ * All served (success>0) content rows for URLs NOT in the platform mapping — no LIMIT, for Others CSV export.
  * Pass matchedBy to scope to a single segment category.
  */
 async function getAllServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, excludeUrls, matchedBy }) {
   console.log(`[REPO:ctvStats] getAllServedContentRowsExcludingUrls excludeCount=${excludeUrls.length} matchedBy=${matchedBy}`);
   const conds = [
-    'success = 1',
+    'success > 0',
     `date >= '${dateFrom}'`,
     `date <= '${dateTo}'`,
     "NOT startsWith(contentid, 'iris')",
@@ -328,13 +328,13 @@ async function getAllServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSaf
 }
 
 /**
- * All served (success=1) content rows for a set of URLs — no LIMIT, used for enrichable CSV export.
+ * All served (success>0) content rows for a set of URLs — no LIMIT, used for enrichable CSV export.
  * Pass matchedBy to scope to a single segment category (e.g. 'G_Roku').
  */
 async function getAllServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, matchedBy }) {
   console.log(`[REPO:ctvStats] getAllServedContentRowsByUrls dateFrom=${dateFrom} dateTo=${dateTo} urlCount=${urls.length} matchedBy=${matchedBy}`);
   const conds = [
-    'success = 1',
+    'success > 0',
     `date >= '${dateFrom}'`,
     `date <= '${dateTo}'`,
     "NOT startsWith(contentid, 'iris')",
@@ -361,14 +361,14 @@ async function getAllServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls
 }
 
 /**
- * Healthy (success=1) category totals for mapped URLs, grouped by (url, matchedby).
- * Used to surface zero-failure categories in the platform queue healthy section.
+ * Served (success>0) category totals for mapped URLs, grouped by (url, matchedby).
+ * Used to surface enrichable categories in the platform queue.
  */
 async function getHealthyCategoryTotals({ dateFrom, dateTo, brandSafe, urls = [] }) {
   console.log(`[REPO:ctvStats] getHealthyCategoryTotals dateFrom=${dateFrom} dateTo=${dateTo} urlCount=${urls.length}`);
   if (!urls.length) return [];
   const conds = [
-    'success = 1',
+    'success > 0',
     `date >= '${dateFrom}'`,
     `date <= '${dateTo}'`,
     "NOT startsWith(contentid, 'iris')",
@@ -404,6 +404,6 @@ module.exports = {
   getAllServedContentRowsByUrls,
   getServedContentRowsExcludingUrls,
   getAllServedContentRowsExcludingUrls,
-  // Enrichable category totals (success=1 special case)
+  // Enrichable category totals (success>0)
   getHealthyCategoryTotals,
 };

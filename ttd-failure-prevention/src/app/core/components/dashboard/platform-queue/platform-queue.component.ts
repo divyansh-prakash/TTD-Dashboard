@@ -357,7 +357,16 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
 
   formatPct(part: number, total: number): string {
     if (!total) return '0%';
-    return (part / total * 100).toFixed(1) + '%';
+    const pct = part / total * 100;
+    if (pct === 0) return '0%';
+    const formatted = pct.toFixed(1);
+    return formatted === '0.0' ? '~0%' : formatted + '%';
+  }
+
+  formatRate(pct: number): string {
+    if (pct === 0) return '0%';
+    const formatted = pct.toFixed(1);
+    return formatted === '0.0' ? '~0%' : formatted + '%';
   }
 
   formatExact(n: number): string {
@@ -370,21 +379,23 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
 
   formatMatchedBy(matchedBy: string): string {
     if (!matchedBy) return 'Unmatched';
-    if (matchedBy.startsWith('CG_')) return 'Content & Genre · ' + matchedBy.slice(3);
+    if (matchedBy.startsWith('CG_')) return 'Channel & Genre · ' + matchedBy.slice(3);
     if (matchedBy.startsWith('C_'))  return 'Content ID · '      + matchedBy.slice(2);
     if (matchedBy.startsWith('G_'))  return 'Genre · '           + matchedBy.slice(2);
     if (matchedBy.startsWith('R_'))  return 'Rating · '          + matchedBy.slice(2);
-    if (matchedBy.startsWith('S_'))  return 'Segment · '         + matchedBy.slice(2);
+    if (matchedBy.startsWith('S_'))  return 'Series · '          + matchedBy.slice(2);
+    if (matchedBy.startsWith('TS_')) return 'Title & Series · '  + matchedBy.slice(3);
     return matchedBy;
   }
 
   formatMatchedByShort(matchedBy: string): string {
     if (!matchedBy) return 'Unmatched';
-    if (matchedBy.startsWith('CG_')) return 'Content & Genre';
+    if (matchedBy.startsWith('CG_')) return 'Channel & Genre';
     if (matchedBy.startsWith('C_'))  return 'Content ID';
     if (matchedBy.startsWith('G_'))  return 'Genre';
     if (matchedBy.startsWith('R_'))  return 'Rating';
-    if (matchedBy.startsWith('S_'))  return 'Segment';
+    if (matchedBy.startsWith('S_'))  return 'Series';
+    if (matchedBy.startsWith('TS_')) return 'Title & Series';
     return matchedBy;
   }
 
@@ -392,11 +403,12 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
   // (redundant context). Keeps the suffix when it carries real information (e.g. genre names).
   formatEnrichableCategory(matchedBy: string, platformName: string): string {
     const prefixes: [string, string][] = [
-      ['CG_', 'Content & Genre'],
+      ['CG_', 'Channel & Genre'],
       ['C_',  'Content ID'],
       ['G_',  'Genre'],
       ['R_',  'Rating'],
-      ['S_',  'Segment'],
+      ['S_',  'Series'],
+      ['TS_', 'Title & Series'],
     ];
     for (const [prefix, label] of prefixes) {
       if (matchedBy.startsWith(prefix)) {

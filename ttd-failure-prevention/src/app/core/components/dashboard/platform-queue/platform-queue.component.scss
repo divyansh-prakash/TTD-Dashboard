@@ -125,7 +125,7 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
   grid-template-columns: 1fr $col-count-w $col-pct-w $col-chev-w;
   column-gap: $col-gap;
   padding: 7px $row-h-pad;
-  background: color-mix(in srgb, var(--text-primary) 3%, var(--bg));
+  background: var(--surface);
   border: 1px solid var(--border);
   border-bottom: 2px solid var(--border);
   border-radius: var(--radius) var(--radius) 0 0;
@@ -134,6 +134,7 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
   position: sticky;
   top: 0;
   z-index: 10;
+  box-shadow: 0 3px 8px rgba(0,0,0,.08);
 }
 
 .th-col {
@@ -163,6 +164,14 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
   &:first-child { border-top: none; }
   &:not(:last-child) { border-bottom: none; }
   &:last-child { border-radius: 0 0 var(--radius) var(--radius); }
+
+  &.expanded {
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+    border-radius: 0 0 var(--radius) var(--radius);
+
+    & + .platform-card { border-top: 1px solid var(--border); }
+  }
 }
 
 /* ── Platform header row ─────────────────────────────────────
@@ -428,7 +437,6 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
 /* ── Sub-accordion list ── */
 .sub-accordion-list {
   border-top: 1px solid var(--border);
-  /* Background comes from .failing-zone / .healthy-zone — no fill here */
   background: transparent;
 }
 
@@ -465,14 +473,14 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
   column-gap: $col-gap;
   align-items: center;
   width: 100%;
-  padding: 9px $row-h-pad 9px ($row-h-pad + $icon-slot);
-  background: none;
+  padding: 8px $row-h-pad 8px ($row-h-pad + $icon-slot);
+  background: color-mix(in srgb, var(--text-primary) 2%, var(--bg));
   border: none;
   cursor: pointer;
   text-align: left;
   transition: background .15s;
 
-  &:hover { background: color-mix(in srgb, var(--accent) 2%, transparent); }
+  &:hover { background: color-mix(in srgb, var(--accent) 3%, var(--bg)); }
 
   .col-num { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
   .col-pct { font-size: 11px; }
@@ -569,15 +577,21 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
   font-size: 13px;
 
   th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
     text-align: left;
     padding: 7px 16px;
+
+    &:first-child { padding-left: 28px; }
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .07em;
     color: var(--text-secondary);
-    background: color-mix(in srgb, var(--text-primary) 3%, var(--surface));
-    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--text-primary) 4%, var(--surface));
+    border-bottom: 2px solid var(--border);
+    box-shadow: 0 2px 4px rgba(0,0,0,.06);
     white-space: nowrap;
     &.e-th-r { text-align: right; }
   }
@@ -587,10 +601,11 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
     background: var(--surface);
 
     td {
-      padding: 10px 16px;
-      border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+      padding: 7px 14px;
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
       vertical-align: middle;
       transition: background .12s;
+      font-size: 12px;
     }
 
     &.e-row-alt td { background: color-mix(in srgb, var(--text-primary) 2%, var(--surface)); }
@@ -599,7 +614,7 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
     &:last-child:not(.expanded) td { border-bottom: none; }
   }
 
-  .e-cat { font-weight: 600; color: var(--text-primary); }
+  .e-cat { font-weight: 600; color: var(--text-primary); font-size: 12px; padding-left: 28px !important; }
   .e-num { text-align: right; }
 
   /* Separator row between enrichable and failing sections */
@@ -625,6 +640,14 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
   .e-row-failing td { background: color-mix(in srgb, var(--red) 3%, var(--surface)); }
   .e-row-failing.e-row-alt td { background: color-mix(in srgb, var(--red) 5%, var(--surface)); }
   .e-row-failing:hover td { background: color-mix(in srgb, var(--red) 8%, transparent) !important; }
+
+  /* Direct-served row: green tint, not expandable */
+  .e-row-direct { cursor: default; }
+  .e-row-direct td { background: color-mix(in srgb, var(--green) 4%, var(--surface)); }
+  .e-row-direct.e-row-alt td { background: color-mix(in srgb, var(--green) 7%, var(--surface)); }
+
+  .e-num.red   { color: var(--red); }
+  .e-num.green { color: var(--green); }
 
   .e-detail-cell {
     padding: 0;
@@ -785,6 +808,8 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
   max-height: 320px;
   overflow-y: auto;
   overflow-x: auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .content-table {
@@ -803,8 +828,9 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
     text-transform: uppercase;
     letter-spacing: .05em;
     color: var(--text-secondary);
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    border-bottom: 2px solid var(--border);
+    box-shadow: 0 2px 4px rgba(0,0,0,.06);
     white-space: nowrap;
   }
 
@@ -836,6 +862,7 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
 
 .sub-table {
   th { background: color-mix(in srgb, var(--bg) 80%, transparent); }
+  th:first-child, td:first-child { padding-left: 28px; }
 
   td.cell-truncate {
     max-width: 180px;
