@@ -7,11 +7,11 @@
     </div>
     <div class="stat-chip">
       <span class="stat-label">Success Rate</span>
-      <span class="stat-value green">{{ successRate().toFixed(1) }}%</span>
+      <span class="stat-value green">{{ formatRate(successRate()) }}</span>
     </div>
     <div class="stat-chip">
       <span class="stat-label">Failure Rate</span>
-      <span class="stat-value red">{{ failureRate().toFixed(1) }}%</span>
+      <span class="stat-value red">{{ formatRate(failureRate()) }}</span>
       <span class="stat-sub red">{{ formatNumber(totalAtRisk()) }} reqs</span>
     </div>
     <div class="stat-chip">
@@ -70,7 +70,7 @@
   }
   <div class="platform-list">
     @for (platform of platforms(); track platform.name) {
-      <div class="platform-card" [class.others-card]="platform.name === 'Others'">
+      <div class="platform-card" [class.others-card]="platform.name === 'Others'" [class.expanded]="platform.expanded">
 
         <!-- Platform Header — grid: [name 1fr] [count] [pct] [req] [chevron] -->
         <div class="platform-row">
@@ -132,7 +132,7 @@
             }
             @if (platform.othersTab === 'urls') {
               <div class="platform-content">
-                <table class="content-table others-table" style="min-width:560px">
+                <table class="content-table others-table">
                   <colgroup>
                     <col style="width:40px">
                     <col>
@@ -195,8 +195,8 @@
               <th>Matched By</th>
               <th class="e-th-r">Requests</th>
               <th class="e-th-r">%</th>
-              <th style="width:36px"></th>
               <th style="width:28px"></th>
+              <th style="width:36px"></th>
             </tr>
           </thead>
           <tbody>
@@ -206,8 +206,11 @@
               <tr class="e-row" [class.e-row-alt]="i % 2 === 1" [class.expanded]="group.expanded"
                   (click)="toggleMatchedByGroup(platform.name, group.matchedBy)">
                 <td class="e-cat">{{ formatEnrichableCategory(group.matchedBy, platform.name) }}</td>
-                <td class="mono e-num">{{ formatNumber(group.totalRequestsServed || 0) }}</td>
-                <td class="mono e-num">{{ formatPct(group.totalRequestsServed || 0, platform.totalRequests) }}</td>
+                <td class="mono e-num">{{ formatNumber(group.totalRequests || 0) }}</td>
+                <td class="mono e-num">{{ formatPct(group.totalRequests || 0, platform.totalRequests) }}</td>
+                <td>
+                  <svg class="chevron sm" [class.open]="group.expanded" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </td>
                 <td>
                   <button class="e-row-dl-btn"
                     [class.downloading]="downloadingGroups().has(platform.name + ':' + group.matchedBy)"
@@ -219,9 +222,6 @@
                       <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     }
                   </button>
-                </td>
-                <td>
-                  <svg class="chevron sm" [class.open]="group.expanded" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
                 </td>
               </tr>
               @if (group.expanded) {
@@ -271,8 +271,11 @@
                   [class.expanded]="group.expanded"
                   (click)="toggleMatchedByGroup(platform.name, group.matchedBy)">
                 <td class="e-cat">Unmatched</td>
-                <td class="mono e-num red">{{ formatNumber(group.totalRequestsAtRisk) }}</td>
-                <td class="mono e-num red">{{ formatPct(group.totalRequestsAtRisk, platform.totalRequests) }}</td>
+                <td class="mono e-num red">{{ formatNumber(group.totalRequests || group.totalRequestsAtRisk) }}</td>
+                <td class="mono e-num red">{{ formatPct(group.totalRequests || group.totalRequestsAtRisk, platform.totalRequests) }}</td>
+                <td>
+                  <svg class="chevron sm" [class.open]="group.expanded" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </td>
                 <td>
                   <button class="e-row-dl-btn"
                     [class.downloading]="downloadingZones().has(platform.name + ':failed')"
@@ -284,9 +287,6 @@
                       <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     }
                   </button>
-                </td>
-                <td>
-                  <svg class="chevron sm" [class.open]="group.expanded" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
                 </td>
               </tr>
               @if (group.expanded) {

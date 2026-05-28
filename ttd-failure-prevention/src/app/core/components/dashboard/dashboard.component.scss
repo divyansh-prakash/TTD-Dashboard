@@ -123,6 +123,8 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px;
+  position: relative;
+  z-index: 20;
 }
 
 .filter-group {

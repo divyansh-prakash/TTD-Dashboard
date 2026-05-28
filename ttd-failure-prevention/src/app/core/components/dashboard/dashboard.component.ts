@@ -80,8 +80,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   resetFilters() {
-    this.dateRange = '7';
-    this.filters = { dateFrom: this.nDaysAgo(7), dateTo: this.today(), platforms: [], channel: '', brandSafe: 'all' };
+    this.dateRange = '1';
+    this.filters = { dateFrom: this.nDaysAgo(1), dateTo: this.nDaysAgo(1), platforms: [], channel: '', brandSafe: 'all' };
     this.appliedFilters = { ...this.filters };
     this.platformsOpen.set(false);
   }

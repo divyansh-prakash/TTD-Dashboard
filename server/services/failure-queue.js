@@ -18,6 +18,10 @@ const { toFailedRow } = require('../models/failure-queue');
 
 function sortMatchedByGroups(map) {
   return Object.values(map).sort((a, b) => {
+    const aIsC = a.matchedBy.startsWith('C_');
+    const bIsC = b.matchedBy.startsWith('C_');
+    if (aIsC && !bIsC) return -1;
+    if (!aIsC && bIsC) return 1;
     if (a.matchedBy === 'Unmatched') return 1;
     if (b.matchedBy === 'Unmatched') return -1;
     return b.totalRequestsAtRisk - a.totalRequestsAtRisk;
@@ -45,12 +49,13 @@ async function getByPlatform({ dateFrom, dateTo, platformList, channel, brandSaf
     ? [...urlMap.entries()].filter(([, p]) => platformList.includes(p.toLowerCase())).map(([url]) => url)
     : mappedUrls;
 
-  const [urlRows, othersMatchedRows, othersTopUrlRows, healthyRows, totalUrlRows] = await Promise.all([
+  const [urlRows, othersMatchedRows, othersTopUrlRows, healthyRows, totalUrlRows, othersTotalRows] = await Promise.all([
     getCtvFailedAgg({ dateFrom, dateTo, brandSafe, urls: mappedUrls, groupBy: 'url,matchedby' }),
     includeOthers ? getCtvFailedAgg({ dateFrom, dateTo, brandSafe, excludeUrls: mappedUrls, groupBy: 'matchedby' }) : Promise.resolve([]),
     includeOthers ? getCtvFailedAgg({ dateFrom, dateTo, brandSafe, excludeUrls: mappedUrls, groupBy: 'url', limit: 100 }) : Promise.resolve([]),
     getHealthyCategoryTotals({ dateFrom, dateTo, brandSafe, urls: healthyUrls }),
     getCtvTotalAgg({ dateFrom, dateTo, brandSafe, urls: mappedUrls, groupBy: 'url' }),
+    includeOthers ? getCtvTotalAgg({ dateFrom, dateTo, brandSafe, excludeUrls: mappedUrls, groupBy: 'url' }) : Promise.resolve([]),
   ]);
 
   console.log(`[SVC:failure-queue] phase1 urlRows=${urlRows.length} othersMatchedRows=${othersMatchedRows.length} othersTopUrls=${othersTopUrlRows.length} healthyRows=${healthyRows.length} totalUrlRows=${totalUrlRows.length}`);
@@ -62,6 +67,9 @@ async function getByPlatform({ dateFrom, dateTo, platformList, channel, brandSaf
     if (!appName) continue;
     if (platformList.length && !platformList.includes(appName.toLowerCase())) continue;
     platformTotalMap[appName] = (platformTotalMap[appName] || 0) + Number(row.req_total);
+  }
+  if (othersTotalRows.length) {
+    platformTotalMap['Others'] = othersTotalRows.reduce((s, r) => s + Number(r.req_total), 0);
   }
 
   const platformMap = {};
@@ -123,20 +131,42 @@ async function getByPlatform({ dateFrom, dateTo, platformList, channel, brandSaf
   const platforms = Object.values(platformMap)
     .map(p => {
       const { matchedByMap, ...rest } = p;
-      const failingKeys  = new Set(Object.keys(matchedByMap));
-      const healthyMap   = healthyPlatformMap[p.name] || {};
-      const healthyGroups = Object.entries(healthyMap)
-        .filter(([mb]) => !failingKeys.has(mb))
-        .map(([matchedBy, totalRequestsServed]) => ({ matchedBy, totalRequestsServed }))
-        .sort((a, b) => b.totalRequestsServed - a.totalRequestsServed);
-      const matchedByGroups = sortMatchedByGroups(matchedByMap).map(group => {
-        if (group.matchedBy && group.matchedBy !== 'Unmatched') {
-          const served = healthyMap[group.matchedBy] || 0;
-          return { ...group, totalRequestsServed: served };
+      const healthyMap = healthyPlatformMap[p.name] || {};
+
+      // Merge healthy-only groups (success=1, never failed for this matchedBy)
+      // into matchedByMap so all segments appear in one unified list.
+      for (const [mb] of Object.entries(healthyMap)) {
+        if (!matchedByMap[mb]) {
+          matchedByMap[mb] = { matchedBy: mb, failedCount: 0, totalRequestsAtRisk: 0, rows: [] };
         }
-        return group;
-      });
-      return { ...rest, matchedByGroups, healthyGroups, totalRequests: platformTotalMap[p.name] || 0 };
+      }
+
+      const matchedByGroups = Object.values(matchedByMap)
+        .map(group => {
+          const served = (group.matchedBy && group.matchedBy !== 'Unmatched')
+            ? (healthyMap[group.matchedBy] || 0)
+            : 0;
+          return {
+            ...group,
+            totalRequestsServed: served,
+            totalRequests: group.totalRequestsAtRisk + served,
+          };
+        })
+        .sort((a, b) => {
+          if (a.matchedBy === 'Unmatched') return 1;
+          if (b.matchedBy === 'Unmatched') return -1;
+          return b.totalRequests - a.totalRequests;
+        });
+
+      // Requests served with no segment tag (success=1, matchedBy='').
+      // These don't appear in healthyMap (which filters matchedby != '') or
+      // in matchedByMap (which filters success=0). Shown as a non-expandable row.
+      const totalServedWithSegment = Object.values(healthyMap).reduce((s, v) => s + v, 0);
+      const directServedRequests   = Math.max(0,
+        (platformTotalMap[p.name] || 0) - p.totalRequestsAtRisk - totalServedWithSegment
+      );
+
+      return { ...rest, matchedByGroups, directServedRequests, totalRequests: platformTotalMap[p.name] || 0 };
     })
     .sort((a, b) => {
       if (a.name === 'Others') return 1;

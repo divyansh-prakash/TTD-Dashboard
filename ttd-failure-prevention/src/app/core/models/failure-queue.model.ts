@@ -20,6 +20,7 @@ export interface MatchedByGroup {
   failedCount: number;
   totalRequestsAtRisk: number;
   totalRequestsServed?: number;
+  totalRequests?: number;
   enrichable?: boolean;
   sortDesc?: boolean;
   rows: FailedRow[];
@@ -46,6 +47,7 @@ export interface PlatformGroup {
   failedCount: number;
   totalRequestsAtRisk: number;
   totalRequests: number;
+  directServedRequests?: number;
   rows: FailedRow[];
   urlSummary?: UrlSummary[];
   matchedByGroups?: MatchedByGroup[];
