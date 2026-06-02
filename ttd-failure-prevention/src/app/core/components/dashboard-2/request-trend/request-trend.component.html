@@ -1,0 +1,23 @@
+<div class="panel-card">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">Request volume over time</div>
+      <div class="panel-sub">{{ trend()?.granularity === 'hourly' ? 'Hourly' : 'Daily' }} · {{ filters.dateFrom }} → {{ filters.dateTo }}</div>
+    </div>
+    <div class="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:#3b82f6"></div>Total</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#2d9b6f"></div>Successful</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#ef4444"></div>Failed</div>
+    </div>
+  </div>
+
+  <div class="chart-area">
+    @if (loading()) {
+      <div class="chart-loading"><div class="spinner"></div></div>
+    } @else {
+      <div class="chart-wrap">
+        <canvas #trendCanvas></canvas>
+      </div>
+    }
+  </div>
+</div>

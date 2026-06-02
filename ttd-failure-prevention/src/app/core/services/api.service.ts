@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { ByPlatformResponse, FilterOptions, FailureQueueFilters, TrendResponse, PlatformDetailResponse } from '../models/failure-queue.model';
+import { ByPlatformResponse, FilterOptions, FailureQueueFilters, TrendResponse, PlatformDetailResponse, PlatformSummaryResponse, ContentHit, ContentHitsResponse, PeriodComparison } from '../models/failure-queue.model';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -9,18 +9,29 @@ export class ApiService {
 
   constructor(private http: HttpClient) { }
 
+  private addRegion(params: HttpParams, filters: Partial<FailureQueueFilters>): HttpParams {
+    if (filters.region && filters.region !== 'all') params = params.set('region', filters.region);
+    return params;
+  }
+
   getByPlatform(filters: Partial<FailureQueueFilters>, offset = 0, limit = 25): Observable<ByPlatformResponse> {
     let params = new HttpParams();
     if (filters.dateFrom) params = params.set('dateFrom', filters.dateFrom);
-    if (filters.dateTo) params = params.set('dateTo', filters.dateTo);
-    if (filters.platforms?.length) {
-      filters.platforms.forEach(p => { params = params.append('platforms', p); });
-    }
+    if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
+    if (filters.platforms?.length) filters.platforms.forEach(p => { params = params.append('platforms', p); });
     if (filters.channel && filters.channel !== 'all') params = params.set('channel', filters.channel);
     if (filters.brandSafe && filters.brandSafe !== 'all') params = params.set('brandSafe', filters.brandSafe);
-    params = params.set('offset', String(offset));
-    params = params.set('limit', String(limit));
+    params = this.addRegion(params, filters);
+    params = params.set('offset', String(offset)).set('limit', String(limit));
     return this.http.get<ByPlatformResponse>(`${this.base}/failure-queue/by-platform`, { params });
+  }
+
+  getPlatformSummary(platform: string, filters: Partial<FailureQueueFilters>): Observable<PlatformSummaryResponse> {
+    let params = new HttpParams().set('platform', platform);
+    if (filters.dateFrom) params = params.set('dateFrom', filters.dateFrom);
+    if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
+    params = this.addRegion(params, filters);
+    return this.http.get<PlatformSummaryResponse>(`${this.base}/failure-queue/by-platform/summary`, { params });
   }
 
   getPlatformDetail(
@@ -30,15 +41,17 @@ export class ApiService {
     offset = 0,
     limit = 25,
     enrichable = false,
+    search = '',
   ): Observable<PlatformDetailResponse> {
     let params = new HttpParams().set('platform', platform);
     if (filters.dateFrom) params = params.set('dateFrom', filters.dateFrom);
-    if (filters.dateTo) params = params.set('dateTo', filters.dateTo);
+    if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
     if (filters.brandSafe && filters.brandSafe !== 'all') params = params.set('brandSafe', filters.brandSafe);
     if (matchedBy) params = params.set('matchedBy', matchedBy);
     if (enrichable) params = params.set('enrichable', 'true');
-    params = params.set('offset', String(offset));
-    params = params.set('limit', String(limit));
+    if (search) params = params.set('search', search);
+    params = this.addRegion(params, filters);
+    params = params.set('offset', String(offset)).set('limit', String(limit));
     return this.http.get<PlatformDetailResponse>(`${this.base}/failure-queue/by-platform/detail`, { params });
   }
 
@@ -52,15 +65,36 @@ export class ApiService {
     if (filters.dateTo)    params = params.set('dateTo',    filters.dateTo);
     if (filters.brandSafe && filters.brandSafe !== 'all') params = params.set('brandSafe', filters.brandSafe);
     if (matchedBy) params = params.set('matchedBy', matchedBy);
+    params = this.addRegion(params, filters);
     return this.http.get(`${this.base}/failure-queue/by-platform/download`, { params, responseType: 'blob' });
+  }
+
+  getPeriodComparison(filters: Partial<FailureQueueFilters>): Observable<PeriodComparison> {
+    let params = new HttpParams();
+    if (filters.dateFrom) params = params.set('dateFrom', filters.dateFrom);
+    if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
+    if (filters.brandSafe && filters.brandSafe !== 'all') params = params.set('brandSafe', filters.brandSafe);
+    if (filters.platforms?.length) filters.platforms.forEach(p => { params = params.append('platforms', p); });
+    params = this.addRegion(params, filters);
+    return this.http.get<PeriodComparison>(`${this.base}/failure-queue/comparison`, { params });
+  }
+
+  getContentHits(platform: string, filters: Partial<FailureQueueFilters>, matchedBy: string, offset = 0, limit = 50): Observable<ContentHitsResponse> {
+    let params = new HttpParams().set('platform', platform).set('matchedBy', matchedBy)
+      .set('offset', String(offset)).set('limit', String(limit));
+    if (filters.dateFrom) params = params.set('dateFrom', filters.dateFrom);
+    if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
+    params = this.addRegion(params, filters);
+    return this.http.get<ContentHitsResponse>(`${this.base}/failure-queue/by-platform/hits`, { params });
   }
 
   getTrend(filters: Partial<FailureQueueFilters>): Observable<TrendResponse> {
     let params = new HttpParams();
     if (filters.dateFrom) params = params.set('dateFrom', filters.dateFrom);
-    if (filters.dateTo) params = params.set('dateTo', filters.dateTo);
+    if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
     if (filters.platforms?.length === 1) params = params.set('platform', filters.platforms[0]);
     if (filters.brandSafe && filters.brandSafe !== 'all') params = params.set('brandSafe', filters.brandSafe);
+    params = this.addRegion(params, filters);
     return this.http.get<TrendResponse>(`${this.base}/failure-queue/trend`, { params });
   }
 }

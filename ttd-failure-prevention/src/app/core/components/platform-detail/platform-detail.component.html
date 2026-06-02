@@ -1,0 +1,407 @@
+<div class="layout">
+
+	<!-- Sidebar -->
+	<aside class="sidebar">
+		<div class="sidebar-logo">
+			<div class="logo-mark">
+				<div class="logo-icon">SP</div>
+				<div>
+					<div class="logo-text">Silverpush CTV</div>
+					<div class="logo-sub">TTD Enrichment</div>
+				</div>
+			</div>
+		</div>
+		<nav class="nav-section">
+			<div class="nav-label">Navigation</div>
+			<a class="nav-item" (click)="goBack()">
+				<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+					stroke="currentColor" stroke-width="2">
+					<rect x="3" y="3" width="7" height="7" />
+					<rect x="14" y="3" width="7" height="7" />
+					<rect x="3" y="14" width="7" height="7" />
+					<rect x="14" y="14" width="7" height="7" />
+				</svg>
+				Failure Queue
+			</a>
+			<a class="nav-item active">
+				<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+					stroke="currentColor" stroke-width="2">
+					<polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+				</svg>
+				Platform Detail
+			</a>
+		</nav>
+		<div class="sidebar-footer">
+			<span class="version-tag">v1.0.0</span>
+		</div>
+	</aside>
+
+	<!-- Main -->
+	<div class="main">
+
+		<!-- Top bar -->
+		<div class="top-bar">
+			<button class="back-btn" (click)="goBack()">
+				<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+					stroke="currentColor" stroke-width="2.5">
+					<polyline points="15 18 9 12 15 6" />
+				</svg>
+				Back to Queue
+			</button>
+			<span class="top-bar-title">{{ platformName() }}</span>
+			<span class="top-bar-sep">/</span>
+			<span class="top-bar-sub">Platform Detail</span>
+		</div>
+
+		<!-- Filters bar -->
+		<div class="filters-bar">
+			<div class="filter-group">
+				<label>Date Range</label>
+				<select [(ngModel)]="dateRange" (change)="onDateRangeChange()">
+					@for (opt of dateRangeOptions; track opt.value) {
+					<option [value]="opt.value">{{ opt.label }}</option>
+					}
+				</select>
+			</div>
+			<div class="filter-group">
+				<label>Region</label>
+				<select [(ngModel)]="region" (change)="onRegionChange()">
+					@for (o of regionOptions; track o.value) {
+					<option [value]="o.value">{{ o.label }}</option>
+					}
+				</select>
+			</div>
+			<span class="date-label-text">{{ dateLabel() }}</span>
+		</div>
+
+		<!-- Content -->
+		<div class="content">
+
+			@if (loading()) {
+			<div class="state-box">
+				<div class="spinner"></div>
+				<span>Loading platform data…</span>
+			</div>
+			}
+
+			@if (error()) {
+			<div class="state-box error">
+				<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+					stroke="currentColor" stroke-width="2">
+					<circle cx="12" cy="12" r="10" />
+					<line x1="12" y1="8" x2="12" y2="12" />
+					<line x1="12" y1="16" x2="12.01" y2="16" />
+				</svg>
+				<span>{{ error() }}</span>
+				<button (click)="loadSummary()">Retry</button>
+			</div>
+			}
+
+			@if (!loading() && !error() && summary()) {
+
+			<!-- Stat blocks -->
+			<div class="stat-row">
+				<div class="stat-card">
+					<div class="stat-label">Total Requests</div>
+					<div class="stat-value">{{ formatNumber(summary()!.totalRequests) }}</div>
+					<div class="stat-sub">100%</div>
+				</div>
+				<div class="stat-card">
+					<div class="stat-label">Success (Served)</div>
+					<div class="stat-value green">{{ formatNumber(summary()!.successCount) }}</div>
+					<div class="stat-sub">{{ formatPct(summary()!.successCount, summary()!.totalRequests) }}</div>
+				</div>
+				<div class="stat-card">
+					<div class="stat-label">Failed</div>
+					<div class="stat-value red">{{ formatNumber(summary()!.failedCount) }}</div>
+					<div class="stat-sub">{{ formatPct(summary()!.failedCount, summary()!.totalRequests) }}</div>
+				</div>
+				<!-- <div class="stat-card">
+					<div class="stat-label">Enrichable Categories</div>
+					<div class="stat-value amber">{{ summary()!.enrichableCount }}</div>
+					<div class="stat-sub">active segments</div>
+				</div> -->
+			</div>
+
+			<!-- Traffic distribution + Category breakdown -->
+			<div class="panels-row">
+
+				<!-- Traffic Distribution — commented out, keeping for later
+          <div class="traffic-panel">
+            <div class="panel-title">Traffic Distribution</div>
+            <div class="traffic-chart"><canvas #pieCanvas></canvas></div>
+            <div class="traffic-legend">
+              @for (item of pieLegend(); track item.label) {
+                <div class="traffic-legend__item">
+                  <span class="traffic-legend__dot" [style.background]="item.color"></span>
+                  <span class="traffic-legend__label">{{ item.label }}</span>
+                  <span class="traffic-legend__pct">{{ item.pct }}%</span>
+                </div>
+              }
+            </div>
+          </div>
+          -->
+
+				<!-- Category Breakdown accordion -->
+				<div class="breakdown-panel">
+
+					<!-- Column header band -->
+					<div class="cat-col-header">
+						<span></span>
+						<span class="cat-th">Matched By</span>
+						<button class="cat-sort-btn" (click)="toggleCatSort()">
+							Requests <span class="cat-sort-icon">{{ catSortIcon() }}</span>
+						</button>
+						<span class="cat-th cat-th-r">Req %</span>
+						<span></span>
+					</div>
+
+					@for (cat of sortedCategoriesDisplay(); track cat.matchedBy) {
+					<div class="cat-acc" [class.is-open]="getCatState(cat.matchedBy).expanded"
+						[class.type-fail]="cat.type === 'fail'" [class.type-deep]="cat.type === 'deep'"
+						[class.type-shallow]="cat.type === 'shallow'">
+
+						<!-- Tabular header row -->
+						<div class="cat-acc__header">
+							<svg class="cat-acc__chevron" [class.open]="getCatState(cat.matchedBy).expanded"
+								(click)="toggleCat(cat.matchedBy)" xmlns="http://www.w3.org/2000/svg" width="14"
+								height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<polyline points="6 9 12 15 18 9" />
+							</svg>
+							<span class="cat-acc__name" [class.is-fail]="cat.type === 'fail'"
+								[class.is-deep]="cat.type === 'deep'" [class.is-shallow]="cat.type === 'shallow'"
+								(click)="toggleCat(cat.matchedBy)">{{ formatMatchedBy(cat.matchedBy) }}</span>
+							<span class="cat-acc__req" (click)="toggleCat(cat.matchedBy)">{{ formatNumber(cat.requests)
+								}}</span>
+							<span class="cat-acc__pct" [class.is-fail]="cat.type === 'fail'"
+								[class.is-deep]="cat.type === 'deep'" (click)="toggleCat(cat.matchedBy)">{{
+								cat.pct.toFixed(1) }}%</span>
+							<button class="cat-acc__dl-btn" [disabled]="getCatState(cat.matchedBy).downloading"
+								(click)="downloadCat(cat.matchedBy)">
+								@if (getCatState(cat.matchedBy).downloading) {
+								<div class="spinner sm"></div>
+								} @else {
+								<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
+									fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+									<polyline points="7 10 12 15 17 10" />
+									<line x1="12" y1="15" x2="12" y2="3" />
+								</svg>
+								}
+								{{ catDownloadLabel(cat.matchedBy) }}
+							</button>
+						</div>
+
+						<!-- Expanded body -->
+						@if (getCatState(cat.matchedBy).expanded) {
+						<div class="cat-acc__body">
+
+							<!-- Inner header — tabs left, search right -->
+							<div class="cat-acc__inner-header" [class.type-fail]="cat.type === 'fail'"
+								[class.type-deep]="cat.type === 'deep'" [class.type-shallow]="cat.type === 'shallow'">
+								<div class="cat-acc__inner-top">
+									<div class="tabs-segmented">
+										<button class="tab-btn"
+											[class.active]="getCatState(cat.matchedBy).activeTab === 'content'"
+											(click)="setCatTab(cat.matchedBy, 'content')">Content</button>
+										<button class="tab-btn"
+											[class.active]="getCatState(cat.matchedBy).activeTab === 'urls'"
+											(click)="setCatTab(cat.matchedBy, 'urls')">URLs</button>
+										<button class="tab-btn"
+											[class.active]="getCatState(cat.matchedBy).activeTab === 'hits'"
+											(click)="setCatTab(cat.matchedBy, 'hits')">Hits</button>
+									</div>
+									<div class="search-box" style="margin-left:auto">
+										<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+											fill="none" stroke="#94a3b8" stroke-width="2">
+											<circle cx="11" cy="11" r="8" />
+											<line x1="21" y1="21" x2="16.65" y2="16.65" />
+										</svg>
+										<input type="text" [ngModel]="getCatState(cat.matchedBy).searchVal"
+											(ngModelChange)="onCatSearch(cat.matchedBy, $event)"
+											placeholder="Search…">
+									</div>
+								</div>
+							</div>
+
+							<!-- Content tab -->
+							@if (getCatState(cat.matchedBy).activeTab === 'content') {
+							<div class="cat-acc__table-wrap">
+								<table>
+									<thead>
+										<tr>
+											<th class="rank-th">#</th>
+											<th>Content ID</th>
+											<th>Bundle ID</th>
+											<th>Channel</th>
+											@if (catExtraLabel(cat.matchedBy)) {
+											<th>{{ catExtraLabel(cat.matchedBy) }}</th>
+											}
+											<th class="r sort-active">{{ cat.type !== 'fail' ? 'Served ↓' : 'Failed ↓'
+												}}</th>
+										</tr>
+									</thead>
+									<tbody>
+										@for (row of getCatState(cat.matchedBy).rows; track row.contentId; let i =
+										$index) {
+										<tr>
+											<td class="rank-num">{{ i + 1 }}</td>
+											<td class="mono copy-cell">
+												{{ row.contentId }}
+												<button class="copy-btn" (click)="copyToClipboard(row.contentId); $event.stopPropagation()" title="Copy">
+													<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+												</button>
+											</td>
+											<td class="mono dim copy-cell">
+												{{ row.bundleId || '—' }}
+												@if (row.bundleId) {
+													<button class="copy-btn" (click)="copyToClipboard(row.bundleId); $event.stopPropagation()" title="Copy">
+														<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+													</button>
+												}
+											</td>
+											<td>{{ row.channel || '—' }}</td>
+											@if (catExtraLabel(cat.matchedBy)) {
+											<td class="mono">{{ catExtraValue(cat.matchedBy, row) }}</td>
+											}
+											<td class="r mono" [class.red]="cat.type === 'fail'">{{
+												formatNumber(row.requestsAtRisk) }}</td>
+										</tr>
+										}
+										@if (getCatState(cat.matchedBy).rowsLoading) {
+										<tr>
+											<td [attr.colspan]="catExtraLabel(cat.matchedBy) ? 6 : 5"
+												class="loading-cell">
+												<div class="spinner sm"></div>
+											</td>
+										</tr>
+										}
+										@if (!getCatState(cat.matchedBy).rowsLoading &&
+										getCatState(cat.matchedBy).rows.length === 0) {
+										<tr>
+											<td [attr.colspan]="catExtraLabel(cat.matchedBy) ? 6 : 5"
+												class="empty-cell">No data found.</td>
+										</tr>
+										}
+									</tbody>
+								</table>
+								@if (getCatState(cat.matchedBy).rowsHasMore && !getCatState(cat.matchedBy).rowsLoading)
+								{
+								<button class="load-more-btn" (click)="loadCatMore(cat.matchedBy)">Load more</button>
+								}
+							</div>
+							}
+
+							<!-- Hits tab -->
+							@if (getCatState(cat.matchedBy).activeTab === 'hits') {
+							<div class="cat-acc__table-wrap">
+								@if (getCatState(cat.matchedBy).hitsLoading) {
+								<div class="loading-cell"
+									style="padding:20px; display:flex; align-items:center; justify-content:center; gap:8px">
+									<div class="spinner sm"></div><span>Loading hits…</span>
+								</div>
+								} @else {
+								<table>
+									<thead>
+										<tr>
+											<th class="rank-th">#</th>
+											<th>Content ID</th>
+											<th>Title / Series</th>
+											<th class="r sort-active">Hits ↓</th>
+										</tr>
+									</thead>
+									<tbody>
+										@for (h of getCatState(cat.matchedBy).hitsRows; track h.contentId; let i =
+										$index) {
+										<tr>
+											<td class="rank-num">{{ i + 1 }}</td>
+											<td class="mono">
+												{{ h.contentId }}
+												<div class="url-bar-track">
+													<div class="url-bar-fill"
+														[style.width.%]="(h.hits / hitsMaxCount(cat.matchedBy)) * 100">
+													</div>
+												</div>
+											</td>
+											<td class="dim">{{ h.title || h.series || '—' }}</td>
+											<td class="r mono">{{ formatNumber(h.hits) }}</td>
+										</tr>
+										}
+										@if (getCatState(cat.matchedBy).hitsRows.length === 0) {
+										<tr>
+											<td colspan="4" class="empty-cell">No hits data.</td>
+										</tr>
+										}
+									</tbody>
+								</table>
+								@if (getCatState(cat.matchedBy).hitsHasMore && !getCatState(cat.matchedBy).hitsLoading) {
+									<button class="load-more-btn" (click)="loadCatHitsMore(cat.matchedBy)">Load more</button>
+								}
+								@if (getCatState(cat.matchedBy).hitsLoading && getCatState(cat.matchedBy).hitsRows.length > 0) {
+									<div style="padding:8px; display:flex; justify-content:center"><div class="spinner sm"></div></div>
+								}
+								}
+							</div>
+							}
+
+							<!-- URLs tab -->
+							@if (getCatState(cat.matchedBy).activeTab === 'urls') {
+							<div class="cat-acc__table-wrap">
+								<table>
+									<thead>
+										<tr>
+											<th class="rank-th">#</th>
+											<th>Bundle ID / URL</th>
+											<th class="r sort-active">Requests ↓</th>
+											<th class="r">Content IDs</th>
+										</tr>
+									</thead>
+									<tbody>
+										@for (u of catUrlRows(cat.matchedBy); track u.bundleId; let i = $index) {
+										<tr>
+											<td class="rank-num">{{ i + 1 }}</td>
+											<td class="mono copy-cell">
+												{{ u.bundleId || '—' }}
+												@if (u.bundleId) {
+													<button class="copy-btn" (click)="copyToClipboard(u.bundleId); $event.stopPropagation()" title="Copy">
+														<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+													</button>
+												}
+												<div class="url-bar-track">
+													<div class="url-bar-fill"
+														[style.width.%]="catUrlBarWidth(cat.matchedBy, u.requests)">
+													</div>
+												</div>
+											</td>
+											<td class="r red mono">{{ formatNumber(u.requests) }}</td>
+											<td class="r dim mono">{{ u.contentCount }}</td>
+										</tr>
+										}
+										@if (catUrlRows(cat.matchedBy).length === 0 &&
+										!getCatState(cat.matchedBy).rowsLoading) {
+										<tr>
+											<td colspan="4" class="empty-cell">
+												{{ getCatState(cat.matchedBy).rows.length === 0 ? 'Expand content tab
+												first to load data.' : 'No URLs found.' }}
+											</td>
+										</tr>
+										}
+									</tbody>
+								</table>
+							</div>
+							}
+
+						</div>
+						}
+					</div>
+					} @empty {
+					<p class="breakdown-empty">No category data for this date range.</p>
+					}
+				</div>
+
+			</div>
+
+			}
+		</div>
+	</div>
+</div>

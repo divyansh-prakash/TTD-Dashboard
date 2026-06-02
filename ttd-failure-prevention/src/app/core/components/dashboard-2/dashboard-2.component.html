@@ -1,0 +1,76 @@
+<div class="main">
+
+  <!-- Top header -->
+  <div class="top-header">
+    <div class="greeting">Hi, Paras Nath 👋</div>
+    <div class="avatar">PN</div>
+  </div>
+
+  <!-- Scrollable content -->
+  <div class="content">
+    <div class="page-title">CTV Dashboard</div>
+    <div class="page-sub">Monitor ad request performance across demand partners</div>
+
+    <!-- Partner tabs -->
+    <div class="partner-row">
+      <div class="partner-heading"><i class="ti ti-building"></i>Demand partner</div>
+      <div class="ptabs">
+        @for (p of partners; track p) {
+          <div class="ptab" [class.active]="activePartner === p" (click)="selectPartner(p)">
+            <span class="tdot"></span>{{ p }}
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="filter-row">
+      <div class="filter-ctx"><i class="ti ti-filter"></i>{{ activePartner }} /</div>
+
+      <div class="chip" [class.chip-open]="dateOpen()" (click)="dateOpen.update(v => !v)">
+        <i class="ti ti-calendar"></i><span>Date</span>
+        <span class="chip-val">{{ dateLabel }}</span>
+        <i class="ti ti-chevron-down"></i>
+        @if (dateOpen()) {
+          <div class="chip-backdrop" (click)="dateOpen.set(false); $event.stopPropagation()"></div>
+          <div class="dropdown">
+            @for (o of dateOptions; track o.value) {
+              <div class="dd-item" [class.sel]="dateRange === o.value" (click)="selectDate(o.value); $event.stopPropagation()">{{ o.label }}</div>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="cdiv"></div>
+
+      <div class="chip" [class.chip-open]="regionOpen()" (click)="regionOpen.update(v => !v)">
+        <i class="ti ti-world"></i><span>Region</span>
+        <span class="chip-val">{{ regionLabel }}</span>
+        <i class="ti ti-chevron-down"></i>
+        @if (regionOpen()) {
+          <div class="chip-backdrop" (click)="regionOpen.set(false); $event.stopPropagation()"></div>
+          <div class="dropdown">
+            @for (o of regionOptions; track o.value) {
+              <div class="dd-item" [class.sel]="region === o.value" (click)="selectRegion(o.value); $event.stopPropagation()">{{ o.label }}</div>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="freset" (click)="reset()"><i class="ti ti-refresh"></i>Reset</div>
+    </div>
+
+    <!-- Panel 1: KPI cards -->
+    <div class="slabel">KPI Summary</div>
+    <app-d2-kpi-cards [platforms]="platforms()" [loading]="platformsLoading()"></app-d2-kpi-cards>
+
+    <!-- Panel 2: Trend chart -->
+    <div class="slabel">Request volume over time</div>
+    <app-d2-request-trend [filters]="appliedFilters"></app-d2-request-trend>
+
+    <!-- Panel 3: Platform table -->
+    <div class="slabel">Platform performance</div>
+    <app-d2-platform-breakdown [platforms]="platforms()" [loading]="platformsLoading()"></app-d2-platform-breakdown>
+
+  </div>
+</div>

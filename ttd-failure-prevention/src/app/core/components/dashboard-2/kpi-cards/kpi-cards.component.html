@@ -1,0 +1,65 @@
+@if (loading) {
+  <div class="kgrid">
+    @for (i of [1,2,3,4]; track i) { <div class="kcard skeleton"></div> }
+  </div>
+} @else {
+  <div class="kgrid">
+
+    <div class="kcard t">
+      <div class="kcard-top">
+        <div class="klbl"><i class="ti ti-radar"></i>Total hits</div>
+        <div class="kval bl">{{ fmtNum(totalRequests()) }}</div>
+        @if (hasPrev()) {
+          <div class="ktrend">
+            <span [class.up]="deltaReqs() >= 0" [class.dn]="deltaReqs() < 0">{{ fmtDelta(deltaReqs()) }}</span>
+            vs prev period
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="kcard s">
+      <div class="kcard-top">
+        <div class="klbl"><i class="ti ti-circle-check"></i>Successful hits</div>
+        <div class="kval gr">{{ fmtNum(successCount()) }}</div>
+        @if (hasPrev()) {
+          <div class="ktrend">
+            <span [class.up]="successCount() >= prevSuccessCount()" [class.dn]="successCount() < prevSuccessCount()">
+              {{ fmtDelta(successCount() - prevSuccessCount()) }}
+            </span> vs prev period
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="kcard f">
+      <div class="kcard-top">
+        <div class="klbl"><i class="ti ti-circle-x"></i>Failed hits</div>
+        <div class="kval rd">{{ fmtNum(failedCount()) }}</div>
+        @if (hasPrev()) {
+          <div class="ktrend">
+            <span [class.up]="failedCount() <= prevFailedCount()" [class.dn]="failedCount() > prevFailedCount()">
+              {{ fmtDelta(failedCount() - prevFailedCount()) }}
+            </span> vs prev period
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="kcard r">
+      <div class="kcard-top">
+        <div class="klbl"><i class="ti ti-percentage"></i>Success rate</div>
+        <div class="kval gr">{{ fmtPct(successRate()) }}</div>
+        @if (hasPrev()) {
+          <div class="ktrend">
+            <span [class.up]="deltaRate() >= 0" [class.dn]="deltaRate() < 0">
+              {{ (deltaRate() >= 0 ? '↑ +' : '↓ ') + fmtPct(Math.abs(deltaRate())) }}
+            </span> vs prev period
+          </div>
+        }
+        <div class="badge" [class]="rateBadge(successRate()).cls">{{ rateBadge(successRate()).label }}</div>
+      </div>
+    </div>
+
+  </div>
+}

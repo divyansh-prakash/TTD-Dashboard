@@ -2,6 +2,7 @@ const service = require('../services/failure-queue');
 const {
   parseByPlatformQuery,
   parseDetailQuery,
+  parseSummaryQuery,
   parseTrendQuery,
   parsePagination,
   parseDownloadQuery,
@@ -67,4 +68,56 @@ async function download(req, res) {
   }
 }
 
-module.exports = { getByPlatform, getByPlatformDetail, getFilterOptions, getTrend, download };
+async function getPlatformSummary(req, res) {
+  try {
+    const params = parseSummaryQuery(req.query);
+    if (!params.platform) return res.status(400).json({ error: 'platform is required' });
+    const result = await service.getPlatformSummary(params);
+    if (!result) return res.status(404).json({ error: 'Platform not found' });
+    res.json(result);
+  } catch (err) {
+    console.error('[CTRL:getPlatformSummary]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function getPeriodComparison(req, res) {
+  try {
+    const { dateFrom, dateTo, brandSafe } = req.query;
+    const platforms = req.query.platforms;
+    const platformList = Array.isArray(platforms) ? platforms.map(p => p.toLowerCase())
+      : platforms ? [platforms.toLowerCase()] : [];
+    const result = await service.getPeriodComparison({
+      dateFrom:  dateFrom  || '',
+      dateTo:    dateTo    || '',
+      brandSafe: brandSafe || 'all',
+      platformList,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[CTRL:getPeriodComparison]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function getContentHits(req, res) {
+  try {
+    const { platform, dateFrom, dateTo, brandSafe, matchedBy, limit, offset } = req.query;
+    if (!platform) return res.status(400).json({ error: 'platform is required' });
+    const result = await service.getContentHits({
+      platform,
+      dateFrom:  dateFrom  || '',
+      dateTo:    dateTo    || '',
+      brandSafe: brandSafe || 'all',
+      matchedBy: matchedBy || '',
+      limit:  Math.max(1, parseInt(limit,  10) || 50),
+      offset: Math.max(0, parseInt(offset, 10) || 0),
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[CTRL:getContentHits]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+module.exports = { getByPlatform, getByPlatformDetail, getPlatformSummary, getFilterOptions, getTrend, download, getContentHits, getPeriodComparison };

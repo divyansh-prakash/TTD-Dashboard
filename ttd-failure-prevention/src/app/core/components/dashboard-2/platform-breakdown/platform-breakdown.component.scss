@@ -1,0 +1,52 @@
+:host { display: block; }
+
+.panel-card { background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; margin-bottom:24px; }
+
+.panel-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 18px; border-bottom:1px solid #f3f4f6;
+}
+.panel-title { font-size:14px; font-weight:700; color:#1a2332; }
+.panel-sub   { font-size:11px; color:#9ca3af; margin-top:2px; }
+.sort-hint   { font-size:11px; color:#9ca3af; display:flex; align-items:center; gap:5px; i { font-size:14px; } }
+
+.tbl-loading {
+  padding:40px; display:flex; align-items:center; justify-content:center; gap:10px;
+  font-size:13px; color:#9ca3af;
+}
+.spinner {
+  width:20px; height:20px;
+  border:2px solid #e5e7eb; border-top-color:#2d9b6f;
+  border-radius:50%; animation:spin .7s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.tbl-wrap { overflow-x:auto; }
+
+.p3-table { width:100%; border-collapse:collapse; font-size:12px; }
+.p3-table thead tr { border-bottom:1px solid #e5e7eb; background:#f9fafb; }
+.p3-table th {
+  padding:10px 16px; font-size:10px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; color:#9ca3af; text-align:left; white-space:nowrap;
+  &.num { text-align:right; }
+}
+.sub-hd { font-weight:400; font-size:9px; color:#b0b8c4; text-transform:none; letter-spacing:0; margin-top:1px; }
+.p3-table td {
+  padding:11px 16px; border-bottom:1px solid #f3f4f6; color:#374151; vertical-align:middle;
+  &.num { text-align:right; }
+}
+.p3-table tbody tr:hover { background:#fafafa; }
+.p3-table tbody tr:last-child td { border-bottom:none; }
+
+.plat-name { font-weight:600; color:#1a2332; font-size:12px; }
+
+.bar-wrap { display:flex; align-items:center; gap:8px; justify-content:flex-end; }
+.bar-bg   { width:80px; height:6px; background:#f3f4f6; border-radius:3px; overflow:hidden; flex-shrink:0; }
+.bar-fill { height:100%; border-radius:3px; background:#3b82f6; }
+
+.delta { font-size:10px; margin-top:2px; }
+.up { color:#2d9b6f; font-weight:600; }
+.dn { color:#ef4444; font-weight:600; }
+
+.rate-cell { display:inline-flex; align-items:center; gap:6px; justify-content:flex-end; }
+.rate-dot  { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
