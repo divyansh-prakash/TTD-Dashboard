@@ -200,6 +200,9 @@ async function getServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, region 
   if (brandSafe === '0') whereConds.push('isbrandsafe = 0');
   if (search) whereConds.push(`(positionCaseInsensitive(contentid, ${sq(search)}) > 0 OR positionCaseInsensitive(url, ${sq(search)}) > 0)`);
   const mbCond = matchedBy ? `matchedby = ${sq(matchedBy)}` : null;
+  // segment/season/episode omitted — they are large columns (avg 662 bytes each)
+  // that cause OOM on ClickHouse for multi-day / high-volume platforms.
+  // For enrichable rows we only display title and series; segment is not needed.
   const sql = `
     SELECT
       contentid,
@@ -207,11 +210,8 @@ async function getServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, region 
       channel,
       SUM(total)       AS req_total,
       any(matchedby)   AS matchedby,
-      any(segment)     AS segment,
       any(title)       AS title,
       any(series)      AS series,
-      any(season)      AS season,
-      any(episode)     AS episode,
       any(isbrandsafe) AS isbrandsafe
     FROM ctv_stats
     WHERE ${whereConds.join(' AND ')}
@@ -238,6 +238,7 @@ async function getServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, 
   if (brandSafe === '1') whereConds.push('isbrandsafe = 1');
   if (brandSafe === '0') whereConds.push('isbrandsafe = 0');
   const mbCond = matchedBy ? `matchedby = ${sq(matchedBy)}` : null;
+  // segment/season/episode omitted — large columns that can OOM on high-volume queries
   const sql = `
     SELECT
       contentid,
@@ -245,11 +246,8 @@ async function getServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, 
       channel,
       SUM(total)       AS req_total,
       any(matchedby)   AS matchedby,
-      any(segment)     AS segment,
       any(title)       AS title,
       any(series)      AS series,
-      any(season)      AS season,
-      any(episode)     AS episode,
       any(isbrandsafe) AS isbrandsafe
     FROM ctv_stats
     WHERE ${whereConds.join(' AND ')}
@@ -468,8 +466,119 @@ async function getUnmatchedUrlBreakdown({ dateFrom, dateTo, brandSafe, region = 
   return queryClickHouse(sql, DB);
 }
 
+/**
+ * Top N and bottom N segments by times served.
+ * segment column holds comma-separated sp_* tags — exploded with arrayJoin.
+ */
+async function getSegmentRankings({ dateFrom, dateTo, brandSafe, region, urls = [], n = 10 }) {
+  const base = [
+    `date >= '${dateFrom}'`,
+    `date <= '${dateTo}'`,
+    "NOT startsWith(contentid, 'iris')",
+    "segment != ''",
+  ];
+  if (brandSafe === '1') base.push('isbrandsafe = 1');
+  if (brandSafe === '0') base.push('isbrandsafe = 0');
+  if (region && region !== 'all') base.push(`region = ${sq(region)}`);
+  if (urls.length) base.push(`url IN (${urls.map(sq).join(',')})`);
+
+  const innerWhere = base.join(' AND ');
+
+  // Inner query selects raw rows with arrayJoin explosion (no aggregation).
+  // Outer query aggregates — this avoids the NOT_AN_AGGREGATE error in ClickHouse.
+  const topSql = `
+    SELECT seg_tag,
+           SUM(if(success > 0, total, 0)) AS times_served,
+           uniq(contentid)                AS distinct_content,
+           SUM(total)                     AS total_requests
+    FROM (
+      SELECT trimBoth(arrayJoin(splitByChar(',', segment))) AS seg_tag,
+             contentid, success, total
+      FROM ctv_stats
+      WHERE ${innerWhere}
+    )
+    WHERE seg_tag != ''
+    GROUP BY seg_tag
+    HAVING times_served > 0
+    ORDER BY times_served DESC
+    LIMIT ${n}
+  `;
+
+  const botSql = `
+    SELECT seg_tag,
+           SUM(if(success > 0, total, 0)) AS times_served,
+           uniq(contentid)                AS distinct_content,
+           SUM(total)                     AS total_requests
+    FROM (
+      SELECT trimBoth(arrayJoin(splitByChar(',', segment))) AS seg_tag,
+             contentid, success, total
+      FROM ctv_stats
+      WHERE ${innerWhere}
+    )
+    WHERE seg_tag != ''
+    GROUP BY seg_tag
+    HAVING distinct_content >= 10
+    ORDER BY times_served ASC
+    LIMIT ${n}
+  `;
+
+  console.log(`[REPO:ctvStats] getSegmentRankings dateFrom=${dateFrom} dateTo=${dateTo} n=${n}`);
+  const [top, bottom] = await Promise.all([
+    queryClickHouse(topSql, DB),
+    queryClickHouse(botSql, DB),
+  ]);
+  return { top, bottom };
+}
+
+/**
+ * Detail for a single segment — overview + per-URL breakdown for platform join.
+ */
+async function getSegmentDetail({ dateFrom, dateTo, brandSafe, region, urls = [], segment }) {
+  const base = [
+    `date >= '${dateFrom}'`,
+    `date <= '${dateTo}'`,
+    "NOT startsWith(contentid, 'iris')",
+    `has(splitByChar(',', segment), ${sq(segment)})`,
+  ];
+  if (brandSafe === '1') base.push('isbrandsafe = 1');
+  if (brandSafe === '0') base.push('isbrandsafe = 0');
+  if (region && region !== 'all') base.push(`region = ${sq(region)}`);
+  if (urls.length) base.push(`url IN (${urls.map(sq).join(',')})`);
+
+  const where = base.join(' AND ');
+
+  const overviewSql = `
+    SELECT
+      SUM(total)                                        AS total_requests,
+      SUM(if(success > 0, total, 0))                   AS times_served,
+      uniq(contentid)                                   AS distinct_content
+    FROM ctv_stats
+    WHERE ${where}
+  `;
+
+  const platformSql = `
+    SELECT
+      url,
+      SUM(if(success > 0, total, 0)) AS times_served,
+      uniq(contentid)                AS distinct_content
+    FROM ctv_stats
+    WHERE ${where}
+    GROUP BY url
+    ORDER BY times_served DESC
+  `;
+
+  console.log(`[REPO:ctvStats] getSegmentDetail segment=${segment} dateFrom=${dateFrom}`);
+  const [overviewRows, platformRows] = await Promise.all([
+    queryClickHouse(overviewSql, DB),
+    queryClickHouse(platformSql, DB),
+  ]);
+  return { overview: overviewRows[0] ?? {}, platforms: platformRows };
+}
+
 module.exports = {
   getCtvContentHits,
+  getSegmentRankings,
+  getSegmentDetail,
   // Unified aggregation (preferred for all new callers)
   getCtvFailedAgg,
   getCtvTotalAgg,

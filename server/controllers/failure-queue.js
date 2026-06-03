@@ -120,4 +120,39 @@ async function getContentHits(req, res) {
   }
 }
 
-module.exports = { getByPlatform, getByPlatformDetail, getPlatformSummary, getFilterOptions, getTrend, download, getContentHits, getPeriodComparison };
+async function getSegmentRankings(req, res) {
+  try {
+    const { dateFrom, dateTo, brandSafe, region, n } = req.query;
+    const result = await service.getSegmentRankingsSvc({
+      dateFrom:  dateFrom  || '',
+      dateTo:    dateTo    || '',
+      brandSafe: brandSafe || 'all',
+      region:    region    || 'all',
+      n: Math.max(1, parseInt(n, 10) || 10),
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[CTRL:getSegmentRankings]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function getSegmentDetail(req, res) {
+  try {
+    const { segment, dateFrom, dateTo, brandSafe, region } = req.query;
+    if (!segment) return res.status(400).json({ error: 'segment is required' });
+    const result = await service.getSegmentDetailSvc({
+      segment,
+      dateFrom:  dateFrom  || '',
+      dateTo:    dateTo    || '',
+      brandSafe: brandSafe || 'all',
+      region:    region    || 'all',
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[CTRL:getSegmentDetail]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+module.exports = { getByPlatform, getByPlatformDetail, getPlatformSummary, getFilterOptions, getTrend, download, getContentHits, getPeriodComparison, getSegmentRankings, getSegmentDetail };

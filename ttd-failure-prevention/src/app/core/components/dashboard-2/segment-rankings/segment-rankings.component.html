@@ -1,0 +1,148 @@
+<div class="panel-card">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">Segment rankings</div>
+      <div class="panel-sub">Top &amp; bottom audience segments · {{ filters.dateFrom }} → {{ filters.dateTo }}</div>
+    </div>
+    <div class="header-right">
+      <div class="legend">
+        <span class="leg-item"><span class="leg-dot top"></span>Top</span>
+        <span class="leg-item"><span class="leg-dot bot"></span>Bottom</span>
+      </div>
+      <select class="n-select" [ngModel]="n()" (ngModelChange)="onNChange($event)">
+        @for (o of nOptions; track o.value) {
+          <option [value]="o.value">{{ o.label }}</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="loading-row"><div class="spinner"></div><span>Loading segment rankings…</span></div>
+  } @else if (data()) {
+    <div class="seg-grid">
+
+      <!-- Top N -->
+      <div class="seg-half">
+        <div class="half-label">Top by times served</div>
+        @for (seg of data()!.top; track seg.segment; let i = $index) {
+          <div class="seg-row" (click)="openModal(seg)">
+            <div class="seg-rank">{{ i + 1 }}</div>
+            <div class="seg-bar-wrap">
+              <div class="seg-name" [title]="seg.segment">{{ seg.segment }}</div>
+              <div class="seg-track">
+                <div class="seg-fill top" [style.width.%]="(seg.timesServed / topMax()) * 100"></div>
+              </div>
+              <div class="seg-sub">{{ fmtNum(seg.distinctContent) }} distinct content pieces</div>
+            </div>
+            <div class="seg-meta">
+              <div class="seg-count">{{ fmtNum(seg.timesServed) }}</div>
+              <div class="seg-label">times served</div>
+            </div>
+            <button class="seg-drill" title="View detail">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </button>
+          </div>
+        }
+      </div>
+
+      <div class="seg-divider"></div>
+
+      <!-- Bottom N -->
+      <div class="seg-half">
+        <div class="half-label">Bottom by times served</div>
+        @for (seg of data()!.bottom; track seg.segment; let i = $index) {
+          <div class="seg-row" (click)="openModal(seg)">
+            <div class="seg-rank">{{ i + 1 }}</div>
+            <div class="seg-bar-wrap">
+              <div class="seg-name" [title]="seg.segment">{{ seg.segment }}</div>
+              <div class="seg-track">
+                <div class="seg-fill bot" [style.width.%]="(seg.totalRequests / botMax()) * 100"></div>
+              </div>
+              <div class="seg-sub">{{ fmtNum(seg.distinctContent) }} distinct content pieces</div>
+            </div>
+            <div class="seg-meta">
+              <div class="seg-count">{{ fmtNum(seg.timesServed) }}</div>
+              <div class="seg-label">times served</div>
+            </div>
+            <button class="seg-drill" title="View detail">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </button>
+          </div>
+        }
+      </div>
+
+    </div>
+  }
+</div>
+
+<!-- ── Detail modal ── -->
+@if (selectedSegment()) {
+  <div class="modal-backdrop" (click)="closeModal()"></div>
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">{{ selectedSegment()!.segment }}</div>
+        @if (detail()) {
+          <div class="modal-sub">{{ fmtNum(detail()!.totalRequests) }} total requests · {{ fmtNum(detail()!.distinctContent) }} content pieces</div>
+        }
+      </div>
+      <button class="modal-close" (click)="closeModal()">✕</button>
+    </div>
+
+    <div class="modal-tabs">
+      <button class="modal-tab" [class.active]="modalTab() === 'overview'"  (click)="setTab('overview')">Overview</button>
+      <button class="modal-tab" [class.active]="modalTab() === 'platforms'" (click)="setTab('platforms')">Platforms</button>
+    </div>
+
+    <div class="modal-body">
+      @if (detailLoading()) {
+        <div class="modal-loading"><div class="spinner"></div></div>
+      } @else if (detail()) {
+
+        @if (modalTab() === 'overview') {
+          <div class="stat-cards">
+            <div class="stat-c green">
+              <div class="stat-v">{{ fmtNum(detail()!.timesServed) }}</div>
+              <div class="stat-l">Times served</div>
+            </div>
+            <div class="stat-c blue">
+              <div class="stat-v">{{ fmtNum(detail()!.distinctContent) }}</div>
+              <div class="stat-l">Content pieces</div>
+            </div>
+          </div>
+          <div class="req-split-label">Request split</div>
+          <div class="req-bar-bg">
+            <div class="req-bar-fill" [style.width.%]="detail()!.successRate"></div>
+          </div>
+          <div class="req-pct">
+            <span class="dot green"></span>{{ detail()!.successRate.toFixed(0) }}% of requests served
+          </div>
+        }
+
+        @if (modalTab() === 'platforms') {
+          <div class="plat-table">
+            <div class="plat-thead">
+              <span>Platform</span>
+              <span>Times served</span>
+              <span>Content pieces</span>
+            </div>
+            @for (p of detail()!.platforms; track p.platform) {
+              <div class="plat-row">
+                <div class="plat-name-col">
+                  <div class="plat-name">{{ p.platform }}</div>
+                  <div class="plat-bar-bg">
+                    <div class="plat-bar-fill" [style.width.%]="(p.timesServed / platformMax()) * 100"></div>
+                  </div>
+                </div>
+                <div class="plat-served">{{ fmtNum(p.timesServed) }}</div>
+                <div class="plat-pieces">{{ p.distinctContent.toLocaleString() }}</div>
+              </div>
+            }
+          </div>
+        }
+
+      }
+    </div>
+  </div>
+}

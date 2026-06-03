@@ -12,6 +12,8 @@ const {
 	getHealthyCategoryTotals,
 	getUnmatchedUrlBreakdown,
 	getCtvContentHits,
+	getSegmentRankings,
+	getSegmentDetail,
 } = require('../repositories/ctvStats.repo');
 const { getAllPlatformUrlMappings, getDistinctPlatforms } = require('../repositories/platformUrlMap.repo');
 const { toFailedRow } = require('../models/failure-queue');
@@ -489,4 +491,44 @@ async function getContentHits({ platform, dateFrom, dateTo, brandSafe, matchedBy
 	};
 }
 
-module.exports = { getByPlatform, getByPlatformDetail, getPlatformSummary, getFilterOptions, getTrend, downloadCsv, getContentHits, getPeriodComparison };
+
+async function getSegmentRankingsSvc({ dateFrom, dateTo, brandSafe, region, n = 10 }) {
+	console.log(`[SVC:failure-queue] getSegmentRankings dateFrom=${dateFrom} dateTo=${dateTo}`);
+	const { top, bottom } = await getSegmentRankings({ dateFrom, dateTo, brandSafe, region, n });
+	const map = row => ({
+		segment: row.seg_tag,
+		timesServed: Number(row.times_served),
+		distinctContent: Number(row.distinct_content),
+		totalRequests: Number(row.total_requests),
+	});
+	return { top: top.map(map), bottom: bottom.map(map) };
+}
+
+async function getSegmentDetailSvc({ segment, dateFrom, dateTo, brandSafe, region }) {
+	console.log(`[SVC:failure-queue] getSegmentDetail segment=${segment}`);
+	const urlMap = await getAllPlatformUrlMappings();
+	const { overview, platforms } = await getSegmentDetail({ dateFrom, dateTo, brandSafe, region, segment });
+	const total   = Number(overview.total_requests ?? 0);
+	const served  = Number(overview.times_served   ?? 0);
+	const content = Number(overview.distinct_content ?? 0);
+	const platformList = platforms.map(r => ({
+		platform:        urlMap.get(r.url) || 'Others',
+		timesServed:     Number(r.times_served),
+		distinctContent: Number(r.distinct_content),
+	}));
+	// merge Others
+	const pMap = {};
+	for (const p of platformList) {
+		pMap[p.platform] = pMap[p.platform]
+			? { ...pMap[p.platform], timesServed: pMap[p.platform].timesServed + p.timesServed, distinctContent: pMap[p.platform].distinctContent + p.distinctContent }
+			: { ...p };
+	}
+	return {
+		segment, timesServed: served, distinctContent: content,
+		totalRequests: total,
+		successRate: total ? (served / total * 100) : 0,
+		platforms: Object.values(pMap).sort((a, b) => b.timesServed - a.timesServed),
+	};
+}
+
+module.exports = { getByPlatform, getSegmentRankingsSvc, getSegmentDetailSvc, getByPlatformDetail, getPlatformSummary, getFilterOptions, getTrend, downloadCsv, getContentHits, getPeriodComparison };

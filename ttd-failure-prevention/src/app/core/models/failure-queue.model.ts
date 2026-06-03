@@ -143,6 +143,33 @@ export interface ContentHitsResponse {
   hasMore: boolean;
 }
 
+export interface SegmentRanking {
+  segment:        string;
+  timesServed:    number;
+  distinctContent: number;
+  totalRequests:  number;
+}
+
+export interface SegmentRankingsResponse {
+  top:    SegmentRanking[];
+  bottom: SegmentRanking[];
+}
+
+export interface SegmentPlatform {
+  platform:        string;
+  timesServed:     number;
+  distinctContent: number;
+}
+
+export interface SegmentDetail {
+  segment:         string;
+  timesServed:     number;
+  distinctContent: number;
+  totalRequests:   number;
+  successRate:     number;
+  platforms:       SegmentPlatform[];
+}
+
 export interface FailureQueueFilters {
   dateFrom: string;
   dateTo: string;

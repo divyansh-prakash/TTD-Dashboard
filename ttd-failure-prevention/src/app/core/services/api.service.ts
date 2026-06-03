@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { ByPlatformResponse, FilterOptions, FailureQueueFilters, TrendResponse, PlatformDetailResponse, PlatformSummaryResponse, ContentHit, ContentHitsResponse, PeriodComparison } from '../models/failure-queue.model';
+import { ByPlatformResponse, FilterOptions, FailureQueueFilters, TrendResponse, PlatformDetailResponse, PlatformSummaryResponse, ContentHit, ContentHitsResponse, PeriodComparison, SegmentRankingsResponse, SegmentDetail } from '../models/failure-queue.model';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -86,6 +86,22 @@ export class ApiService {
     if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
     params = this.addRegion(params, filters);
     return this.http.get<ContentHitsResponse>(`${this.base}/failure-queue/by-platform/hits`, { params });
+  }
+
+  getSegmentRankings(filters: Partial<FailureQueueFilters>, n = 10): Observable<SegmentRankingsResponse> {
+    let params = new HttpParams().set('n', String(n));
+    if (filters.dateFrom) params = params.set('dateFrom', filters.dateFrom);
+    if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
+    params = this.addRegion(params, filters);
+    return this.http.get<SegmentRankingsResponse>(`${this.base}/failure-queue/segment-rankings`, { params });
+  }
+
+  getSegmentDetail(segment: string, filters: Partial<FailureQueueFilters>): Observable<SegmentDetail> {
+    let params = new HttpParams().set('segment', segment);
+    if (filters.dateFrom) params = params.set('dateFrom', filters.dateFrom);
+    if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
+    params = this.addRegion(params, filters);
+    return this.http.get<SegmentDetail>(`${this.base}/failure-queue/segment-detail`, { params });
   }
 
   getTrend(filters: Partial<FailureQueueFilters>): Observable<TrendResponse> {

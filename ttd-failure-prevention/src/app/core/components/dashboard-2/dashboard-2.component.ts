@@ -6,11 +6,12 @@ import { FailureQueueFilters, PlatformGroup } from '../../models/failure-queue.m
 import { KpiCardsComponent } from './kpi-cards/kpi-cards.component';
 import { RequestTrendComponent } from './request-trend/request-trend.component';
 import { PlatformBreakdownComponent } from './platform-breakdown/platform-breakdown.component';
+import { SegmentRankingsComponent } from './segment-rankings/segment-rankings.component';
 
 @Component({
   selector: 'app-dashboard-2',
   standalone: true,
-  imports: [CommonModule, KpiCardsComponent, RequestTrendComponent, PlatformBreakdownComponent],
+  imports: [CommonModule, KpiCardsComponent, RequestTrendComponent, PlatformBreakdownComponent, SegmentRankingsComponent],
   templateUrl: './dashboard-2.component.html',
   styleUrl: './dashboard-2.component.scss',
 })
