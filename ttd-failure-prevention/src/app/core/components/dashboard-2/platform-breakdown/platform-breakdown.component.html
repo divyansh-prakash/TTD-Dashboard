@@ -2,7 +2,7 @@
   <div class="panel-header">
     <div>
       <div class="panel-title">Platform performance</div>
-      <div class="panel-sub">Ranked by total requests</div>
+      <div class="panel-sub">Ranked by total requests · {{ filters.dateFrom }} → {{ filters.dateTo }}</div>
     </div>
     <div class="sort-hint"><i class="ti ti-sort-descending-2"></i>Sorted by total requests</div>
   </div>
@@ -19,6 +19,7 @@
             <th class="num">Successful<div class="sub-hd">vs prev period</div></th>
             <th class="num">Failed<div class="sub-hd">vs prev period</div></th>
             <th class="num">Success rate</th>
+            <th class="num">Segments covered</th>
           </tr>
         </thead>
         <tbody>
@@ -57,6 +58,16 @@
                   <span [style.color]="rateColor(successRate(p))" style="font-weight:600">{{ fmtPct(successRate(p)) }}</span>
                 </div>
               </td>
+              <td class="num">
+                @if (segCountsLoad()) {
+                  <span class="seg-loading">—</span>
+                } @else {
+                  <button class="seg-count-btn" (click)="openModal(p, $event)">
+                    {{ segCounts()[p.name] || '—' }}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                }
+              </td>
             </tr>
           }
         </tbody>
@@ -64,3 +75,44 @@
     </div>
   }
 </div>
+
+<!-- ── Segment modal ── -->
+@if (modalPlatform()) {
+  <div class="modal-backdrop" (click)="closeModal()"></div>
+  <div class="modal">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title">{{ modalPlatform()!.name }}</div>
+        <div class="modal-sub">{{ fmtNum(modalPlatform()!.totalRequests) }} total requests · click a tab to explore</div>
+      </div>
+      <button class="modal-close" (click)="closeModal()">✕</button>
+    </div>
+
+    <div class="modal-tabs">
+      <button class="modal-tab active">Segments covered</button>
+      <!-- Match breakdown tab hidden until ready -->
+      <div class="tab-legend">
+        <span class="tl-dot green"></span><span>≥ 75%</span>
+        <span class="tl-dot amber"></span><span>50–74%</span>
+        <span class="tl-dot red"></span><span>&lt; 50%</span>
+        <span class="tl-note">of served requests</span>
+      </div>
+    </div>
+
+    <div class="modal-body">
+      @if (segDetailLoad()) {
+        <div class="modal-loading"><div class="spinner"></div></div>
+      } @else {
+        <div class="pills-wrap">
+          @for (s of segDetail(); track s.segment) {
+            <div class="seg-pill" [class]="pillClass(s.servedPct)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+              {{ s.segment }}
+              <span class="pill-pct">{{ s.servedPct.toFixed(1) }}%</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+}

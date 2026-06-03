@@ -143,6 +143,13 @@ export interface ContentHitsResponse {
   hasMore: boolean;
 }
 
+export interface PlatformSegmentItem {
+  segment:   string;
+  served:    number;
+  total:     number;
+  servedPct: number;
+}
+
 export interface SegmentRanking {
   segment:        string;
   timesServed:    number;

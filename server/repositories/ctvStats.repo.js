@@ -575,10 +575,77 @@ async function getSegmentDetail({ dateFrom, dateTo, brandSafe, region, urls = []
   return { overview: overviewRows[0] ?? {}, platforms: platformRows };
 }
 
+/**
+ * Distinct segment count per URL for all mapped URLs.
+ * One query covering all platforms — result keyed by URL, resolved to platform in service.
+ */
+async function getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, urls }) {
+  if (!urls.length) return [];
+  const conds = [
+    'success > 0',
+    `date >= '${dateFrom}'`,
+    `date <= '${dateTo}'`,
+    "NOT startsWith(contentid, 'iris')",
+    "segment != ''",
+    `url IN (${urls.map(sq).join(',')})`,
+  ];
+  if (brandSafe === '1') conds.push('isbrandsafe = 1');
+  if (brandSafe === '0') conds.push('isbrandsafe = 0');
+  if (region && region !== 'all') conds.push(`region = ${sq(region)}`);
+  const sql = `
+    SELECT url, uniq(seg) AS seg_count
+    FROM (
+      SELECT url, trimBoth(arrayJoin(splitByChar(',', segment))) AS seg
+      FROM ctv_stats
+      WHERE ${conds.join(' AND ')}
+    )
+    WHERE seg != ''
+    GROUP BY url
+  `;
+  console.log(`[REPO:ctvStats] getPlatformSegmentCounts urlCount=${urls.length}`);
+  return queryClickHouse(sql, DB);
+}
+
+/**
+ * For a specific platform: each distinct segment + % of requests served that contained it.
+ */
+async function getPlatformSegmentDetail({ dateFrom, dateTo, brandSafe, region, urls }) {
+  if (!urls.length) return [];
+  const conds = [
+    `date >= '${dateFrom}'`,
+    `date <= '${dateTo}'`,
+    "NOT startsWith(contentid, 'iris')",
+    "segment != ''",
+    `url IN (${urls.map(sq).join(',')})`,
+  ];
+  if (brandSafe === '1') conds.push('isbrandsafe = 1');
+  if (brandSafe === '0') conds.push('isbrandsafe = 0');
+  if (region && region !== 'all') conds.push(`region = ${sq(region)}`);
+  const sql = `
+    SELECT
+      seg                                         AS segment,
+      SUM(if(success > 0, total, 0))             AS served,
+      SUM(total)                                  AS total_req
+    FROM (
+      SELECT trimBoth(arrayJoin(splitByChar(',', segment))) AS seg, success, total
+      FROM ctv_stats
+      WHERE ${conds.join(' AND ')}
+    )
+    WHERE seg != ''
+    GROUP BY seg
+    HAVING served > 0
+    ORDER BY served DESC
+  `;
+  console.log(`[REPO:ctvStats] getPlatformSegmentDetail urlCount=${urls.length}`);
+  return queryClickHouse(sql, DB);
+}
+
 module.exports = {
   getCtvContentHits,
   getSegmentRankings,
   getSegmentDetail,
+  getPlatformSegmentCounts,
+  getPlatformSegmentDetail,
   // Unified aggregation (preferred for all new callers)
   getCtvFailedAgg,
   getCtvTotalAgg,

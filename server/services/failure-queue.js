@@ -14,6 +14,8 @@ const {
 	getCtvContentHits,
 	getSegmentRankings,
 	getSegmentDetail,
+	getPlatformSegmentCounts,
+	getPlatformSegmentDetail,
 } = require('../repositories/ctvStats.repo');
 const { getAllPlatformUrlMappings, getDistinctPlatforms } = require('../repositories/platformUrlMap.repo');
 const { toFailedRow } = require('../models/failure-queue');
@@ -531,4 +533,38 @@ async function getSegmentDetailSvc({ segment, dateFrom, dateTo, brandSafe, regio
 	};
 }
 
-module.exports = { getByPlatform, getSegmentRankingsSvc, getSegmentDetailSvc, getByPlatformDetail, getPlatformSummary, getFilterOptions, getTrend, downloadCsv, getContentHits, getPeriodComparison };
+
+async function getPlatformSegmentCountsSvc({ dateFrom, dateTo, brandSafe, region }) {
+  const urlMap = await getAllPlatformUrlMappings();
+  const urls = Array.from(urlMap.keys());
+  const rows = await getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, urls });
+  const result = {};
+  for (const r of rows) {
+    const platform = urlMap.get(r.url);
+    if (!platform) continue;
+    result[platform] = (result[platform] || 0) + Number(r.seg_count);
+  }
+  return result;
+}
+
+async function getPlatformSegmentDetailSvc({ platform, dateFrom, dateTo, brandSafe, region }) {
+  const urlMap = await getAllPlatformUrlMappings();
+  const urls = [...urlMap.entries()].filter(([,p]) => p.toLowerCase() === platform.toLowerCase()).map(([u]) => u);
+  if (!urls.length) return [];
+  const [rows, totalRows, failedRows] = await Promise.all([
+    getPlatformSegmentDetail({ dateFrom, dateTo, brandSafe, region, urls }),
+    getCtvTotalAgg({ dateFrom, dateTo, brandSafe, region, urls, groupBy: 'url' }),
+    getCtvFailedAgg({ dateFrom, dateTo, brandSafe, region, urls, groupBy: 'url' }),
+  ]);
+  const totalServed = Math.max(1,
+    totalRows.reduce((s, r) => s + Number(r.req_total), 0) -
+    failedRows.reduce((s, r) => s + Number(r.req_total), 0)
+  );
+  return rows.map(r => ({
+    segment:   r.segment,
+    served:    Number(r.served),
+    total:     totalServed,
+    servedPct: Number(r.served) / totalServed * 100,
+  }));
+}
+module.exports = { getByPlatform, getPlatformSegmentCountsSvc, getPlatformSegmentDetailSvc, getSegmentRankingsSvc, getSegmentDetailSvc, getByPlatformDetail, getPlatformSummary, getFilterOptions, getTrend, downloadCsv, getContentHits, getPeriodComparison };

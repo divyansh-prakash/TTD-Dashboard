@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { ByPlatformResponse, FilterOptions, FailureQueueFilters, TrendResponse, PlatformDetailResponse, PlatformSummaryResponse, ContentHit, ContentHitsResponse, PeriodComparison, SegmentRankingsResponse, SegmentDetail } from '../models/failure-queue.model';
+import { ByPlatformResponse, FilterOptions, FailureQueueFilters, TrendResponse, PlatformDetailResponse, PlatformSummaryResponse, ContentHit, ContentHitsResponse, PeriodComparison, SegmentRankingsResponse, SegmentDetail, PlatformSegmentItem } from '../models/failure-queue.model';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -86,6 +86,22 @@ export class ApiService {
     if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
     params = this.addRegion(params, filters);
     return this.http.get<ContentHitsResponse>(`${this.base}/failure-queue/by-platform/hits`, { params });
+  }
+
+  getPlatformSegmentCounts(filters: Partial<FailureQueueFilters>): Observable<Record<string, number>> {
+    let params = new HttpParams();
+    if (filters.dateFrom) params = params.set('dateFrom', filters.dateFrom);
+    if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
+    params = this.addRegion(params, filters);
+    return this.http.get<Record<string, number>>(`${this.base}/failure-queue/platform-segment-counts`, { params });
+  }
+
+  getPlatformSegmentDetail(platform: string, filters: Partial<FailureQueueFilters>): Observable<PlatformSegmentItem[]> {
+    let params = new HttpParams().set('platform', platform);
+    if (filters.dateFrom) params = params.set('dateFrom', filters.dateFrom);
+    if (filters.dateTo)   params = params.set('dateTo',   filters.dateTo);
+    params = this.addRegion(params, filters);
+    return this.http.get<PlatformSegmentItem[]>(`${this.base}/failure-queue/platform-segment-detail`, { params });
   }
 
   getSegmentRankings(filters: Partial<FailureQueueFilters>, n = 10): Observable<SegmentRankingsResponse> {

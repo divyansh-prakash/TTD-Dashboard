@@ -7,8 +7,10 @@ router.get('/by-platform/download', ctrl.download);
 router.get('/by-platform/summary',  ctrl.getPlatformSummary);
 router.get('/by-platform/hits',       ctrl.getContentHits);
 router.get('/comparison',             ctrl.getPeriodComparison);
-router.get('/segment-rankings',       ctrl.getSegmentRankings);
-router.get('/segment-detail',         ctrl.getSegmentDetail);
+router.get('/segment-rankings',         ctrl.getSegmentRankings);
+router.get('/segment-detail',           ctrl.getSegmentDetail);
+router.get('/platform-segment-counts',  ctrl.getPlatformSegmentCounts);
+router.get('/platform-segment-detail',  ctrl.getPlatformSegmentDetail);
 router.get('/filters/options',      ctrl.getFilterOptions);
 router.get('/trend',                ctrl.getTrend);
 
