@@ -41,8 +41,15 @@
 /* ── Two-column grid ── */
 .seg-grid { display: grid; grid-template-columns: 1fr 1px 1fr; }
 .seg-divider { background: #f3f4f6; }
-.seg-half { padding: 16px 20px; }
-.half-label { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #9ca3af; margin-bottom: 14px; }
+.seg-half {
+  padding: 16px 20px;
+  /* cap at ~10 rows, then scroll — each row ≈ 52px + 24px label */
+  max-height: 564px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #e5e7eb #f9fafb;
+}
+.half-label { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #9ca3af; margin-bottom: 14px; position: sticky; top: 0; background: #fff; padding-top: 2px; padding-bottom: 6px; z-index: 1; }
 
 /* ── Segment row ── */
 .seg-row {

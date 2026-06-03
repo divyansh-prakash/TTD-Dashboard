@@ -537,24 +537,32 @@ async function getSegmentDetailSvc({ segment, dateFrom, dateTo, brandSafe, regio
 async function getPlatformSegmentCountsSvc({ dateFrom, dateTo, brandSafe, region }) {
   const urlMap = await getAllPlatformUrlMappings();
   const urls = Array.from(urlMap.keys());
-  const rows = await getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, urls });
+  // Fetch mapped-platform counts + Others in parallel
+  const [rows, othersRows] = await Promise.all([
+    getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, urls }),
+    getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, excludeUrls: urls }),
+  ]);
   const result = {};
   for (const r of rows) {
     const platform = urlMap.get(r.url);
     if (!platform) continue;
     result[platform] = (result[platform] || 0) + Number(r.seg_count);
   }
+  if (othersRows.length) result['Others'] = Number(othersRows[0].seg_count);
   return result;
 }
 
 async function getPlatformSegmentDetailSvc({ platform, dateFrom, dateTo, brandSafe, region }) {
   const urlMap = await getAllPlatformUrlMappings();
-  const urls = [...urlMap.entries()].filter(([,p]) => p.toLowerCase() === platform.toLowerCase()).map(([u]) => u);
-  if (!urls.length) return [];
+  const allUrls = Array.from(urlMap.keys());
+  const isOthers = platform.toLowerCase() === 'others';
+  const urls        = isOthers ? [] : [...urlMap.entries()].filter(([,p]) => p.toLowerCase() === platform.toLowerCase()).map(([u]) => u);
+  const excludeUrls = isOthers ? allUrls : [];
+  if (!urls.length && !isOthers) return [];
   const [rows, totalRows, failedRows] = await Promise.all([
-    getPlatformSegmentDetail({ dateFrom, dateTo, brandSafe, region, urls }),
-    getCtvTotalAgg({ dateFrom, dateTo, brandSafe, region, urls, groupBy: 'url' }),
-    getCtvFailedAgg({ dateFrom, dateTo, brandSafe, region, urls, groupBy: 'url' }),
+    getPlatformSegmentDetail({ dateFrom, dateTo, brandSafe, region, urls, excludeUrls }),
+    getCtvTotalAgg({ dateFrom, dateTo, brandSafe, region, urls, excludeUrls: isOthers ? allUrls : [], groupBy: 'url' }),
+    getCtvFailedAgg({ dateFrom, dateTo, brandSafe, region, urls, excludeUrls: isOthers ? allUrls : [], groupBy: 'url' }),
   ]);
   const totalServed = Math.max(1,
     totalRows.reduce((s, r) => s + Number(r.req_total), 0) -

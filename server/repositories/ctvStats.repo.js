@@ -579,21 +579,24 @@ async function getSegmentDetail({ dateFrom, dateTo, brandSafe, region, urls = []
  * Distinct segment count per URL for all mapped URLs.
  * One query covering all platforms — result keyed by URL, resolved to platform in service.
  */
-async function getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, urls }) {
-  if (!urls.length) return [];
+async function getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, urls = [], excludeUrls = [] }) {
+  if (!urls.length && !excludeUrls.length) return [];
   const conds = [
     'success > 0',
     `date >= '${dateFrom}'`,
     `date <= '${dateTo}'`,
     "NOT startsWith(contentid, 'iris')",
     "segment != ''",
-    `url IN (${urls.map(sq).join(',')})`,
   ];
+  if (urls.length)        conds.push(`url IN (${urls.map(sq).join(',')})`);
+  if (excludeUrls.length) conds.push(`url NOT IN (${excludeUrls.map(sq).join(',')})`);
   if (brandSafe === '1') conds.push('isbrandsafe = 1');
   if (brandSafe === '0') conds.push('isbrandsafe = 0');
   if (region && region !== 'all') conds.push(`region = ${sq(region)}`);
+  // For Others: collapse all unmapped URLs into one group keyed 'Others'
+  const urlCol = excludeUrls.length ? `'Others'` : 'url';
   const sql = `
-    SELECT url, uniq(seg) AS seg_count
+    SELECT ${urlCol} AS url, uniq(seg) AS seg_count
     FROM (
       SELECT url, trimBoth(arrayJoin(splitByChar(',', segment))) AS seg
       FROM ctv_stats
@@ -602,22 +605,23 @@ async function getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, u
     WHERE seg != ''
     GROUP BY url
   `;
-  console.log(`[REPO:ctvStats] getPlatformSegmentCounts urlCount=${urls.length}`);
+  console.log(`[REPO:ctvStats] getPlatformSegmentCounts urls=${urls.length} excludeUrls=${excludeUrls.length}`);
   return queryClickHouse(sql, DB);
 }
 
 /**
  * For a specific platform: each distinct segment + % of requests served that contained it.
  */
-async function getPlatformSegmentDetail({ dateFrom, dateTo, brandSafe, region, urls }) {
-  if (!urls.length) return [];
+async function getPlatformSegmentDetail({ dateFrom, dateTo, brandSafe, region, urls = [], excludeUrls = [] }) {
+  if (!urls.length && !excludeUrls.length) return [];
   const conds = [
     `date >= '${dateFrom}'`,
     `date <= '${dateTo}'`,
     "NOT startsWith(contentid, 'iris')",
     "segment != ''",
-    `url IN (${urls.map(sq).join(',')})`,
   ];
+  if (urls.length)        conds.push(`url IN (${urls.map(sq).join(',')})`);
+  if (excludeUrls.length) conds.push(`url NOT IN (${excludeUrls.map(sq).join(',')})`);
   if (brandSafe === '1') conds.push('isbrandsafe = 1');
   if (brandSafe === '0') conds.push('isbrandsafe = 0');
   if (region && region !== 'all') conds.push(`region = ${sq(region)}`);
