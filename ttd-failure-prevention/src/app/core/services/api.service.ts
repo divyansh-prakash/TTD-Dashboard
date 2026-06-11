@@ -5,7 +5,7 @@ import { ByPlatformResponse, FilterOptions, FailureQueueFilters, TrendResponse, 
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
-  private base = 'http://localhost:3000/api';
+  private base = 'http://localhost:4000/api';
 
   constructor(private http: HttpClient) { }
 

@@ -12,9 +12,9 @@ const { getAllPlatformUrlMappings } = require('./repositories/platformUrlMap.rep
 const { getContentIdCache } = require('./repositories/contentIdMap.repo');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
-app.use(cors({ origin: 'http://localhost:4200' }));
+app.use(cors({ origin: 'http://localhost:4208' }));
 app.use(express.json());
 
 app.use((req, _res, next) => {

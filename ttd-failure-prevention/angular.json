@@ -64,6 +64,9 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "port": 4208
+          },
           "configurations": {
             "production": {
               "buildTarget": "ttd-failure-prevention:build:production"

@@ -6,7 +6,7 @@
       "Bash(mkdir -p /Users/parasnath/silverpush/frontend/ttd/server)",
       "Bash(npm init *)",
       "Bash(node index.js)",
-      "Bash(curl -s http://localhost:3000/health)"
+      "Bash(curl -s http://localhost:4000/health)"
     ]
   }
 }

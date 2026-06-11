@@ -2,27 +2,25 @@
   <div class="panel-header">
     <div>
       <div class="panel-title">Matchby Breakdown</div>
-      <div class="panel-sub">Requests served per match category (PB_C · PB_G · PB_S · PB_TS) — expand to see per app ID detail</div>
+      <div class="panel-sub">Requests per match category — expand to see per-platform detail</div>
     </div>
     @if (loading()) { <div class="loading-chip">Loading…</div> }
   </div>
 
   @if (groups().length) {
 
-    <!-- Sticky column headers -->
     <div class="col-header-row">
       <div class="ch ch-name">Match Category</div>
       <div class="ch ch-bar"></div>
       <div class="ch ch-num">Total Requests</div>
-      <div class="ch ch-num">Unique Content IDs</div>
-      <div class="ch ch-num">App IDs</div>
+      <div class="ch ch-num">Total Rows</div>
+      <div class="ch ch-num" title="% of total matched requests">% Total</div>
     </div>
 
-    <!-- Scrollable accordion area -->
     <div class="acc-scroll">
       @for (g of groups(); track g.matchedby) {
 
-        <!-- Accordion header -->
+        <!-- Outer accordion header (matchedby) -->
         <div class="group-header" (click)="toggle(g.matchedby)">
           <div class="gh-name">
             <span class="chevron" [class.open]="openGroups().has(g.matchedby)">›</span>
@@ -35,36 +33,74 @@
             </div>
           </div>
           <span class="gh-num hits-val">{{ fmt(g.totalHits) }}</span>
-          <span class="gh-num">{{ fmt(g.uniqueContentIds) }}</span>
-          <span class="gh-num appid-count">{{ g.appidCount }}</span>
+          <span class="gh-num">{{ fmt(g.totalRows) }}</span>
+          <span class="gh-num pct-val">{{ pct(g.totalHits, totalMatchedHits()) | number:'1.1-1' }}%</span>
         </div>
 
-        <!-- Accordion body -->
+        <!-- Outer accordion body -->
         @if (openGroups().has(g.matchedby)) {
           <div class="group-body">
             <div class="body-inner">
 
-              <!-- Inner column headers -->
               <div class="inner-col-header">
-                <div class="ich ich-name">App ID / Platform</div>
+                <div class="ich ich-name">Platform</div>
                 <div class="ich ich-num">Total Requests</div>
-                <div class="ich ich-num">Unique Content IDs</div>
+                <div class="ich ich-num">Total Rows</div>
+                <div class="ich ich-num" title="% of this match category">% Cat.</div>
               </div>
 
-              @for (r of g.rows; track r.appid) {
-                <div class="appid-row">
-                  <div class="ar-name">
-                    <span class="appid-label" [class.unknown-appid]="!r.known" [title]="r.appid">{{ r.appid }}</span>
-                    @if (r.known) {
-                      <span class="platform-tag">{{ r.platform }}</span>
-                    }
-                    <div class="inner-bar">
-                      <div class="bar-fill" [style.width.%]="pct(r.totalHits, g.totalHits)"></div>
+              @for (r of g.rows; track r.platform) {
+
+                @if (r.known) {
+                  <!-- Known platform row -->
+                  <div class="appid-row">
+                    <div class="ar-name">
+                      <span class="appid-label">{{ r.platform }}</span>
+                      <div class="inner-bar">
+                        <div class="bar-fill" [style.width.%]="pct(r.totalHits, g.totalHits)"></div>
+                      </div>
                     </div>
+                    <span class="ar-num hits-val">{{ fmt(r.totalHits) }}</span>
+                    <span class="ar-num">{{ fmt(r.totalRows) }}</span>
+                    <span class="ar-num pct-val">{{ pct(r.totalHits, g.knownTotalHits) | number:'1.1-1' }}%</span>
                   </div>
-                  <span class="ar-num hits-val">{{ fmt(r.totalHits) }}</span>
-                  <span class="ar-num">{{ fmt(r.uniqueContentIds) }}</span>
-                </div>
+
+                } @else {
+                  <!-- Unknown nested accordion -->
+                  <div class="unknown-header" (click)="toggle(g.matchedby + ':unknown')">
+                    <div class="unknown-title">
+                      <span class="chevron" [class.open]="openGroups().has(g.matchedby + ':unknown')">›</span>
+                      <span class="unknown-label">Unknown</span>
+                      <span class="enrichable-tag">Enrichable</span>
+                      <div class="inner-bar">
+                        <div class="bar-fill unknown-bar" [style.width.%]="pct(r.totalHits, g.totalHits)"></div>
+                      </div>
+                    </div>
+                    <span class="ar-num unknown-hits">{{ fmt(r.totalHits) }}</span>
+                    <span class="ar-num unknown-rows">{{ fmt(r.totalRows) }}</span>
+                    <span class="ar-num" style="color:#d1d5db">—</span>
+                  </div>
+
+                  @if (openGroups().has(g.matchedby + ':unknown')) {
+                    <div class="unknown-body">
+                      <div class="unknown-inner">
+                        <div class="unknown-sub-header">
+                          <div class="ush ush-name">App ID</div>
+                          <div class="ush ush-num">Total Requests</div>
+                          <div class="ush ush-num">Total Rows</div>
+                        </div>
+                        @for (sub of r.subRows ?? []; track sub.appid) {
+                          <div class="unknown-sub-row">
+                            <span class="sub-appid">{{ sub.appid }}</span>
+                            <span class="sub-num">{{ fmt(sub.totalHits) }}</span>
+                            <span class="sub-num">{{ fmt(sub.totalRows) }}</span>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                }
+
               }
 
             </div>

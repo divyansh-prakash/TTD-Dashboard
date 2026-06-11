@@ -207,13 +207,13 @@ export interface PubmaticContentGapRow {
 }
 
 export interface PubmaticMatchbyRow {
-  matchedby:        string;
-  matchLabel:       string;
-  appid:            string;
-  platform:         string;
-  known:            boolean;
-  totalHits:        number;
-  uniqueContentIds: number;
+  matchedby:  string;
+  matchLabel: string;
+  appid:      string;
+  platform:   string;
+  known:      boolean;
+  totalRows:  number;
+  totalHits:  number;
 }
 
 export interface PlatformSegmentItem {
