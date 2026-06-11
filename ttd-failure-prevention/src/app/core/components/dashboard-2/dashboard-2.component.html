@@ -60,21 +60,33 @@
       <div class="freset" (click)="reset()"><i class="ti ti-refresh"></i>Reset</div>
     </div>
 
-    <!-- Panel 1: KPI cards -->
-    <div class="slabel">KPI Summary</div>
-    <app-d2-kpi-cards [platforms]="platforms()" [loading]="platformsLoading()"></app-d2-kpi-cards>
-
-    <!-- Panel 2: Trend chart -->
-    <div class="slabel">Request volume over time</div>
-    <app-d2-request-trend [filters]="appliedFilters"></app-d2-request-trend>
-
-    <!-- Panel 3: Platform table -->
-    <div class="slabel">Platform performance</div>
-    <app-d2-platform-breakdown [platforms]="platforms()" [loading]="platformsLoading()" [filters]="appliedFilters"></app-d2-platform-breakdown>
-
-      <!-- Panel 4: Segment rankings -->
+    @if (activePartner === 'TTD') {
+      <!-- TTD panels -->
+      <div class="slabel">KPI Summary</div>
+      <app-d2-kpi-cards [platforms]="platforms()" [loading]="platformsLoading()"></app-d2-kpi-cards>
+      <div class="slabel">Request volume over time</div>
+      <app-d2-request-trend [filters]="appliedFilters"></app-d2-request-trend>
+      <div class="slabel">Platform performance</div>
+      <app-d2-platform-breakdown [platforms]="platforms()" [loading]="platformsLoading()" [filters]="appliedFilters"></app-d2-platform-breakdown>
       <div class="slabel">Segment rankings</div>
       <app-d2-segment-rankings [filters]="appliedFilters"></app-d2-segment-rankings>
+    }
+
+    @if (activePartner === 'Pubmatic') {
+      <!-- Pubmatic panels -->
+      @if (pubLoading()) {
+        <div class="pub-loading"><div class="pub-spinner"></div><span>Loading Pubmatic data…</span></div>
+      } @else {
+        <div class="slabel">KPI Summary</div>
+        <app-pub-kpi [filters]="appliedFilters"></app-pub-kpi>
+        <div class="slabel">App ID Coverage</div>
+        <app-pub-platform-chart [filters]="appliedFilters"></app-pub-platform-chart>
+        <div class="slabel">Content ID Gap Analysis</div>
+        <app-pub-content-gap [filters]="appliedFilters"></app-pub-content-gap>
+        <div class="slabel">Matchby Breakdown</div>
+        <app-pub-matchby [filters]="appliedFilters"></app-pub-matchby>
+      }
+    }
 
   </div>
 </div>

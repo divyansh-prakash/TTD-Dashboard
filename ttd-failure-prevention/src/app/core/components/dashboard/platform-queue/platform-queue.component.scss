@@ -9,7 +9,8 @@
    Sub:      padding-left 64px (= 16px outer + 48px indent)
    ───────────────────────────────────────────────────────────── */
 $col-count-w : 110px;   // requests column
-$col-pct-w   :  72px;   // percentage column (wider for two-liner success%/fail%)
+$col-pct-w   : 130px;   // percentage column — wide enough for success% + inline delta
+$col-dl-w    :  44px;   // download button column
 $col-chev-w  :  20px;   // chevron column
 $col-gap     :  20px;   // gap between every column
 $row-h-pad   :  16px;   // left/right padding on rows
@@ -123,7 +124,7 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
    ─────────────────────────────────────────────────────────────── */
 .col-header-band {
   display: grid;
-  grid-template-columns: $col-chev-w 1fr $col-count-w $col-pct-w;
+  grid-template-columns: $col-chev-w 1fr $col-count-w $col-count-w $col-pct-w $col-dl-w;
   column-gap: $col-gap;
   padding: 7px $row-h-pad;
   background: var(--surface);
@@ -205,7 +206,7 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
    ───────────────────────────────────────────────────────────── */
 .platform-header {
   display: grid;
-  grid-template-columns: $col-chev-w 1fr $col-count-w $col-pct-w;
+  grid-template-columns: $col-chev-w 1fr $col-count-w $col-count-w $col-pct-w;
   column-gap: $col-gap;
   align-items: center;
   width: 100%;
@@ -323,7 +324,8 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
 }
 
 /* ── Shared column cells (platform + sub rows) ── */
-.col-count {
+.col-count,
+.col-unique {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -354,21 +356,38 @@ $icon-slot   :  48px;   // icon (36px) + gap (12px) — used as sub-indent
   text-align: right;
 }
 
-/* Two-liner % wrapper: success % on top, fail % subscript in red below */
+/* Two-liner % wrapper: success % row on top, fail % subscript below */
 .col-pct-wrap {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 1px;
+  gap: 2px;
   justify-self: end;
 }
 
-/* Red subscript line — failure % or blacklisted count */
+/* Success % + its delta on the same row */
+.col-pct-main {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+/* Inline delta beside the success % */
+.col-delta.inline-delta {
+  font-size: 10px;
+  font-family: var(--mono);
+  font-weight: 600;
+  display: inline;
+  margin-top: 0;
+}
+
+/* Red subscript line — failure % */
 .col-pct-sub {
   font-family: var(--mono);
   font-size: 10px;
   color: var(--red);
   opacity: .75;
+  display: block;
 }
 
 /* Red sub-label in col-count (blacklisted segments line) */

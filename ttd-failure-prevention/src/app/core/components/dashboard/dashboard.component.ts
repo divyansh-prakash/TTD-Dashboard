@@ -1,15 +1,15 @@
-import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Component } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { FailureQueueFilters } from '../../models/failure-queue.model';
-import { TrendGraphComponent } from './trend-graph/trend-graph.component';
-import { PlatformQueueComponent } from './platform-queue/platform-queue.component';
 import { FilterHeaderComponent } from '../dashboard-new/filter-header/filter-header.component';
+import { PlatformQueueComponent } from './platform-queue/platform-queue.component';
+import { TrendGraphComponent } from './trend-graph/trend-graph.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink, RouterLinkActive, TrendGraphComponent, PlatformQueueComponent, FilterHeaderComponent],
+  imports: [CommonModule, TrendGraphComponent, PlatformQueueComponent, FilterHeaderComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })

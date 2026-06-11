@@ -60,6 +60,9 @@ export interface PlatformGroup {
   failedCount: number;
   totalRequestsAtRisk: number;
   totalRequests: number;
+  uniqueTotal?: number;
+  uniqueFailed?: number;
+  segmentCount?: number;
   prevTotalRequests?: number;
   prevTotalRequestsAtRisk?: number;
   directServedRequests?: number;
@@ -108,6 +111,8 @@ export interface PlatformSummaryResponse {
   successCount:    number;
   failedCount:     number;
   enrichableCount: number;
+  uniqueTotal:     number;
+  uniqueFailed:    number;
   deepRequests:    number;
   shallowRequests: number;
   unknownRequests: number;
@@ -141,6 +146,72 @@ export interface ContentHit {
 export interface ContentHitsResponse {
   rows:    ContentHit[];
   hasMore: boolean;
+}
+
+export interface PubmaticPlatformBar {
+  platform: string;
+  hits:     number;
+}
+
+export interface PubmaticSummary {
+  totalHits:             number;
+  uniqueTotal:           number;
+  uniqueMatched:         number;
+  uniqueUnmatched:       number;
+  matchRate:             number;
+  knownHits:             number;
+  unknownHits:           number;
+  platformBreakdown:     PubmaticPlatformBar[];
+  uniqueContentIds:        number;
+  uniqueContentMatched:    number;
+  contentMatchRate:        number;
+  servedRequests:          number;
+  matchedContentTotalReqs: number;
+}
+
+export interface PubmaticAppidPlatform {
+  platform: string;
+  count:    number;
+  appids:   string[];
+}
+
+export interface PubmaticAppidBreakdown {
+  totalAppids:  number;
+  knownCount:   number;
+  unknownCount: number;
+  breakdown:    PubmaticAppidPlatform[];
+}
+
+export interface PubmaticContentCoverageRow {
+  platform:     string;
+  pubmaticIds:  number;
+  dpttdIds:     number;
+  covered:      number;
+  uncovered:    number;
+  coverageRate: number;
+  hasDpttdData: boolean;
+}
+
+// PubmaticContentIdBreakdown disabled — cross-server approach abandoned.
+
+export interface PubmaticContentGapRow {
+  appid:     string;
+  platform:  string;
+  known:     boolean;
+  total:     number;
+  matched:   number;
+  unmatched: number;
+  matchRate: number;
+}
+
+export interface PubmaticMatchbyRow {
+  matchedby:        string;
+  matchLabel:       string;
+  appid:            string;
+  platform:         string;
+  known:            boolean;
+  totalHits:        number;
+  uniqueContentIds: number;
 }
 
 export interface PlatformSegmentItem {
@@ -184,4 +255,5 @@ export interface FailureQueueFilters {
   channel: string;
   brandSafe: string;
   region?: string;       // 'all' | 'EU' | 'USE' | 'USW' | 'APAC'
+  partner?: string;      // 'TTD' | 'Pubmatic' — routes to the correct backend data source
 }

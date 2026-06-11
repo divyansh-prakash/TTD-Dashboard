@@ -19,12 +19,12 @@ export class RequestTrendComponent implements OnChanges, OnDestroy {
   @ViewChild('trendCanvas') canvasRef!: ElementRef<HTMLCanvasElement>;
 
   loading = signal(true);
-  trend   = signal<TrendResponse | null>(null);
+  trend = signal<TrendResponse | null>(null);
 
   private chartInstance: any = null;
   private destroy$ = new Subject<void>();
 
-  constructor(private api: ApiService, @Inject(PLATFORM_ID) private platformId: object) {}
+  constructor(private api: ApiService, @Inject(PLATFORM_ID) private platformId: object) { }
 
   ngOnChanges(c: SimpleChanges): void { if (c['filters']) this.load(); }
 
@@ -35,13 +35,14 @@ export class RequestTrendComponent implements OnChanges, OnDestroy {
 
   private load(): void {
     this.loading.set(true);
-    this.api.getTrend(this.filters).pipe(takeUntil(this.destroy$)).subscribe({
-      next: d => {
-        this.trend.set(d); this.loading.set(false);
-        if (isPlatformBrowser(this.platformId)) setTimeout(() => this.renderChart(d), 0);
-      },
-      error: () => this.loading.set(false),
-    });
+    this.api.getTrend(this.filters)
+      .pipe(takeUntil(this.destroy$)).subscribe({
+        next: data => {
+          this.trend.set(data); this.loading.set(false);
+          if (isPlatformBrowser(this.platformId)) setTimeout(() => this.renderChart(data), 0);
+        },
+        error: () => this.loading.set(false),
+      });
   }
 
   private async renderChart(d: TrendResponse): Promise<void> {
@@ -50,7 +51,7 @@ export class RequestTrendComponent implements OnChanges, OnDestroy {
     const { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip } = await import('chart.js');
     Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip);
     this.chartInstance?.destroy();
-    const totalSeries  = d.series.find(s => s.name.includes('Total'))?.data ?? [];
+    const totalSeries = d.series.find(s => s.name.includes('Total'))?.data ?? [];
     const failedSeries = d.series.find(s => s.name.includes('Failed'))?.data ?? [];
     const successSeries = totalSeries.map((t, i) => Math.max(0, t - (failedSeries[i] ?? 0)));
     this.chartInstance = new Chart(canvas, {
@@ -58,9 +59,9 @@ export class RequestTrendComponent implements OnChanges, OnDestroy {
       data: {
         labels: d.dates,
         datasets: [
-          { label: 'Total',      data: totalSeries,   borderColor: '#3b82f6', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
+          { label: 'Total', data: totalSeries, borderColor: '#3b82f6', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
           { label: 'Successful', data: successSeries, borderColor: '#2d9b6f', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
-          { label: 'Failed',     data: failedSeries,  borderColor: '#ef4444', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
+          { label: 'Failed', data: failedSeries, borderColor: '#ef4444', fill: false, tension: 0.3, borderWidth: 2, pointRadius: 3 },
         ],
       },
       options: {

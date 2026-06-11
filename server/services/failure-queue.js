@@ -1,23 +1,15 @@
-const {
-	getCtvFailedAgg,
-	getCtvTotalAgg,
-	getFailedContentRowsByUrls,
-	getAllFailedContentRowsByUrls,
-	getAllFailedContentRowsExcludingUrls,
-	getFailedContentRowsExcludingUrls,
-	getServedContentRowsByUrls,
-	getAllServedContentRowsByUrls,
-	getServedContentRowsExcludingUrls,
-	getAllServedContentRowsExcludingUrls,
-	getHealthyCategoryTotals,
-	getUnmatchedUrlBreakdown,
-	getCtvContentHits,
-	getSegmentRankings,
-	getSegmentDetail,
-	getPlatformSegmentCounts,
-	getPlatformSegmentDetail,
-} = require('../repositories/ctvStats.repo');
+const ctvStatsRepo = require('../repositories/ctvStats.repo');
+const { getCtvContentHits, getSegmentRankings, getSegmentDetail, getPlatformSegmentCounts, getPlatformSegmentDetail } = ctvStatsRepo;
+const pubmaticRepo = require('../repositories/pubmaticStats.repo');
 const { getAllPlatformUrlMappings, getDistinctPlatforms } = require('../repositories/platformUrlMap.repo');
+const { getContentIdCache, PLATFORM_TABLES } = require('../repositories/contentIdMap.repo');
+const { getPubmaticContentCoverage } = require('../repositories/pubmaticContentCache.repo');
+const { resolveDb } = require('../db/databases');
+
+/** Returns the correct ClickHouse repo for the given partner. */
+function getRepo(partner) {
+  return partner === 'Pubmatic' ? pubmaticRepo : ctvStatsRepo;
+}
 const { toFailedRow } = require('../models/failure-queue');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -42,7 +34,9 @@ function accumMatchedBy(map, mbKey, contentCount, reqTotal) {
 
 // ── Service methods ───────────────────────────────────────────────────────────
 
-async function getByPlatform({ dateFrom, dateTo, platformList, channel, brandSafe, region = 'all', limit, offset }) {
+async function getByPlatform({ dateFrom, dateTo, platformList, channel, brandSafe, region = 'all', limit, offset, partner = 'TTD' }) {
+	const db = resolveDb(partner);
+	const { getCtvFailedAgg, getCtvTotalAgg, getHealthyCategoryTotals } = getRepo(partner);
 	console.log(`[SVC:failure-queue] getByPlatform dateFrom=${dateFrom} dateTo=${dateTo} platforms=[${platformList}] limit=${limit} offset=${offset}`);
 
 	const urlMap = await getAllPlatformUrlMappings();
@@ -63,15 +57,18 @@ async function getByPlatform({ dateFrom, dateTo, platformList, channel, brandSaf
 		? [...urlMap.entries()].filter(([, p]) => platformList.includes(p.toLowerCase())).map(([url]) => url)
 		: mappedUrls;
 
-	const [urlRows, othersMatchedRows, othersTopUrlRows, healthyRows, totalUrlRows, othersTotalRows, prevTotalUrlRows, prevFailedUrlRows] = await Promise.all([
-		getCtvFailedAgg({ dateFrom, dateTo, brandSafe, region, urls: mappedUrls, groupBy: 'url,matchedby' }),
-		includeOthers ? getCtvFailedAgg({ dateFrom, dateTo, brandSafe, region, excludeUrls: mappedUrls, groupBy: 'matchedby' }) : Promise.resolve([]),
-		includeOthers ? getCtvFailedAgg({ dateFrom, dateTo, brandSafe, region, excludeUrls: mappedUrls, groupBy: 'url', limit: 100 }) : Promise.resolve([]),
-		getHealthyCategoryTotals({ dateFrom, dateTo, brandSafe, region, urls: healthyUrls }),
-		getCtvTotalAgg({ dateFrom, dateTo, brandSafe, region, urls: mappedUrls, groupBy: 'url' }),
-		includeOthers ? getCtvTotalAgg({ dateFrom, dateTo, brandSafe, region, excludeUrls: mappedUrls, groupBy: 'url' }) : Promise.resolve([]),
-		getCtvTotalAgg({ dateFrom: prevDateFrom, dateTo: prevDateTo, brandSafe, region, urls: mappedUrls, groupBy: 'url' }),
-		getCtvFailedAgg({ dateFrom: prevDateFrom, dateTo: prevDateTo, brandSafe, region, urls: mappedUrls, groupBy: 'url' }),
+	const [urlRows, healthyRows, totalUrlRows, prevTotalUrlRows, prevFailedUrlRows, curFailedUrlRows, segCountRows, othersMatchedRows, othersTopUrlRows, othersTotalRows, othersSegCountRows] = await Promise.all([
+		getCtvFailedAgg({ dateFrom, dateTo, brandSafe, region, urls: mappedUrls, groupBy: 'url,matchedby', db }),
+		getHealthyCategoryTotals({ dateFrom, dateTo, brandSafe, region, urls: healthyUrls, db }),
+		getCtvTotalAgg({ dateFrom, dateTo, brandSafe, region, urls: mappedUrls, groupBy: 'url', db }),
+		getCtvTotalAgg({ dateFrom: prevDateFrom, dateTo: prevDateTo, brandSafe, region, urls: mappedUrls, groupBy: 'url', db }),
+		getCtvFailedAgg({ dateFrom: prevDateFrom, dateTo: prevDateTo, brandSafe, region, urls: mappedUrls, groupBy: 'url', db }),
+		getCtvFailedAgg({ dateFrom, dateTo, brandSafe, region, urls: mappedUrls, groupBy: 'url', db }),
+		getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, urls: mappedUrls, db }),
+		includeOthers ? getCtvFailedAgg({ dateFrom, dateTo, brandSafe, region, excludeUrls: mappedUrls, groupBy: 'matchedby', db }) : Promise.resolve([]),
+		includeOthers ? getCtvFailedAgg({ dateFrom, dateTo, brandSafe, region, excludeUrls: mappedUrls, groupBy: 'url', limit: 100, db }) : Promise.resolve([]),
+		includeOthers ? getCtvTotalAgg({ dateFrom, dateTo, brandSafe, region, excludeUrls: mappedUrls, groupBy: 'url', db }) : Promise.resolve([]),
+		includeOthers ? getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, excludeUrls: mappedUrls, db }) : Promise.resolve([]),
 	]);
 
 	console.log(`[SVC:failure-queue] phase1 urlRows=${urlRows.length} othersMatchedRows=${othersMatchedRows.length} othersTopUrls=${othersTopUrlRows.length} healthyRows=${healthyRows.length} totalUrlRows=${totalUrlRows.length}`);
@@ -87,6 +84,33 @@ async function getByPlatform({ dateFrom, dateTo, platformList, channel, brandSaf
 	if (othersTotalRows.length) {
 		platformTotalMap['Others'] = othersTotalRows.reduce((s, r) => s + Number(r.req_total), 0);
 	}
+
+	// Unique requests: uniq(contentid) per URL = unique (contentid,url) pairs
+	// Sum content_count across a platform's URLs to get platform-level unique counts
+	const platformUniqueTotalMap = {};
+	for (const row of totalUrlRows) {
+		const appName = urlMap.get(row.url);
+		if (!appName) continue;
+		if (platformList.length && !platformList.includes(appName.toLowerCase())) continue;
+		platformUniqueTotalMap[appName] = (platformUniqueTotalMap[appName] || 0) + Number(row.content_count);
+	}
+	const platformUniqueFailedMap = {};
+	for (const row of curFailedUrlRows) {
+		const appName = urlMap.get(row.url);
+		if (!appName) continue;
+		if (platformList.length && !platformList.includes(appName.toLowerCase())) continue;
+		platformUniqueFailedMap[appName] = (platformUniqueFailedMap[appName] || 0) + Number(row.content_count);
+	}
+
+	// Segment count per platform (inlined — no separate API call needed)
+	const platformSegmentCountMap = {};
+	for (const row of segCountRows) {
+		const appName = urlMap.get(row.url);
+		if (!appName) continue;
+		if (platformList.length && !platformList.includes(appName.toLowerCase())) continue;
+		platformSegmentCountMap[appName] = (platformSegmentCountMap[appName] || 0) + Number(row.seg_count);
+	}
+	if (othersSegCountRows.length) platformSegmentCountMap['Others'] = Number(othersSegCountRows[0].seg_count);
 
 	// Previous period per-platform maps
 	const prevPlatformTotalMap = {};
@@ -200,7 +224,7 @@ async function getByPlatform({ dateFrom, dateTo, platformList, channel, brandSaf
 
 			const prevTotal = prevPlatformTotalMap[p.name] || 0;
 			const prevFailed = prevPlatformFailedMap[p.name] || 0;
-			return { ...rest, matchedByGroups, directServedRequests, totalRequests: platformTotalMap[p.name] || 0, prevTotalRequests: prevTotal, prevTotalRequestsAtRisk: prevFailed };
+			return { ...rest, matchedByGroups, directServedRequests, totalRequests: platformTotalMap[p.name] || 0, prevTotalRequests: prevTotal, prevTotalRequestsAtRisk: prevFailed, uniqueTotal: platformUniqueTotalMap[p.name] || 0, uniqueFailed: platformUniqueFailedMap[p.name] || 0, segmentCount: platformSegmentCountMap[p.name] || 0 };
 		})
 		.sort((a, b) => {
 			if (a.name === 'Others') return 1;
@@ -215,7 +239,9 @@ async function getByPlatform({ dateFrom, dateTo, platformList, channel, brandSaf
 	};
 }
 
-async function getByPlatformDetail({ platform, dateFrom, dateTo, brandSafe, matchedBy, enrichable, search, region = 'all', limit, offset }) {
+async function getByPlatformDetail({ platform, dateFrom, dateTo, brandSafe, matchedBy, enrichable, search, region = 'all', limit, offset, partner = 'TTD' }) {
+	const db = resolveDb(partner);
+	const { getFailedContentRowsByUrls, getFailedContentRowsExcludingUrls, getServedContentRowsByUrls, getServedContentRowsExcludingUrls } = getRepo(partner);
 	console.log(`[SVC:failure-queue] getByPlatformDetail platform=${platform} matchedBy=${matchedBy} enrichable=${enrichable} search=${search} limit=${limit} offset=${offset}`);
 
 	const urlMap = await getAllPlatformUrlMappings();
@@ -225,23 +251,25 @@ async function getByPlatformDetail({ platform, dateFrom, dateTo, brandSafe, matc
 	if (platform === 'Others') {
 		const mappedUrls = Array.from(urlMap.keys());
 		rawRows = enrichable
-			? await getServedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, matchedBy, limit, offset })
-			: await getFailedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, matchedBy, limit, offset });
+			? await getServedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, matchedBy, limit, offset, db })
+			: await getFailedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, matchedBy, limit, offset, db });
 	} else {
 		const platformUrls = [...urlMap.entries()]
 			.filter(([, p]) => p.toLowerCase() === platform.toLowerCase())
 			.map(([url]) => url);
 		if (!platformUrls.length) return { rows: [], meta: { offset, limit, hasMore: false } };
 		rawRows = enrichable
-			? await getServedContentRowsByUrls({ ...filters, urls: platformUrls, matchedBy, search, limit, offset })
-			: await getFailedContentRowsByUrls({ ...filters, urls: platformUrls, matchedBy, search, limit, offset });
+			? await getServedContentRowsByUrls({ ...filters, urls: platformUrls, matchedBy, search, limit, offset, db })
+			: await getFailedContentRowsByUrls({ ...filters, urls: platformUrls, matchedBy, search, limit, offset, db });
 	}
 
 	const rows = rawRows.map(toFailedRow);
 	return { rows, meta: { offset, limit, hasMore: rows.length === limit } };
 }
 
-async function getPlatformSummary({ platform, dateFrom, dateTo, brandSafe, region = 'all' }) {
+async function getPlatformSummary({ platform, dateFrom, dateTo, brandSafe, region = 'all', partner = 'TTD' }) {
+	const db = resolveDb(partner);
+	const { getCtvFailedAgg, getCtvTotalAgg, getHealthyCategoryTotals, getUnmatchedUrlBreakdown } = getRepo(partner);
 	console.log(`[SVC:failure-queue] getPlatformSummary platform=${platform} dateFrom=${dateFrom} dateTo=${dateTo}`);
 
 	const urlMap = await getAllPlatformUrlMappings();
@@ -253,16 +281,20 @@ async function getPlatformSummary({ platform, dateFrom, dateTo, brandSafe, regio
 
 	const filters = { dateFrom, dateTo, brandSafe, region };
 
-	const [totalRows, failedByMb, servedByMb, unmatchedUrlRows] = await Promise.all([
-		getCtvTotalAgg({ ...filters, urls: platformUrls, groupBy: 'url' }),
+	const [totalRows, failedByMb, servedByMb, unmatchedUrlRows, failedUniqueRows] = await Promise.all([
+		getCtvTotalAgg({ ...filters, urls: platformUrls, groupBy: 'url', db }),
 		getCtvFailedAgg({ ...filters, urls: platformUrls, groupBy: 'matchedby' }),
-		getHealthyCategoryTotals({ ...filters, urls: platformUrls }),
-		getUnmatchedUrlBreakdown({ ...filters, urls: platformUrls }),
+		getHealthyCategoryTotals({ ...filters, urls: platformUrls, db }),
+		getUnmatchedUrlBreakdown({ ...filters, urls: platformUrls, db }),
+		getCtvFailedAgg({ ...filters, urls: platformUrls, groupBy: 'url', db }),  // for unique failed count
 	]);
 
-	const totalRequests = totalRows.reduce((s, r) => s + Number(r.req_total), 0);
-	const failedCount = failedByMb.reduce((s, r) => s + Number(r.req_total), 0);
-	const successCount = totalRequests - failedCount;
+	const totalRequests  = totalRows.reduce((s, r) => s + Number(r.req_total), 0);
+	const failedCount    = failedByMb.reduce((s, r) => s + Number(r.req_total), 0);
+	const successCount   = totalRequests - failedCount;
+	// unique (contentid,url) combos: sum uniq(contentid) per URL
+	const uniqueTotal    = totalRows.reduce((s, r) => s + Number(r.content_count), 0);
+	const uniqueFailed   = failedUniqueRows.reduce((s, r) => s + Number(r.content_count), 0);
 
 	// Aggregate served by matchedby across all URLs
 	const servedMap = {};
@@ -317,6 +349,7 @@ async function getPlatformSummary({ platform, dateFrom, dateTo, brandSafe, regio
 	return {
 		platform, dateFrom, dateTo,
 		totalRequests, successCount, failedCount, enrichableCount,
+		uniqueTotal, uniqueFailed,
 		deepRequests, shallowRequests, unknownRequests,
 		categories,
 		unmatchedUrls: unmatchedUrlRows.map(r => ({
@@ -330,7 +363,9 @@ async function getFilterOptions() {
 	return { platforms };
 }
 
-async function getTrend({ dateFrom, dateTo, platform, brandSafe, region = 'all' }) {
+async function getTrend({ dateFrom, dateTo, platform, brandSafe, region = 'all', partner = 'TTD' }) {
+	const db = resolveDb(partner);
+	const { getCtvFailedAgg, getCtvTotalAgg } = getRepo(partner);
 	const isSingleDay = dateFrom === dateTo;
 	const isPlatformFiltered = platform && platform !== 'all';
 	const filters = { dateFrom, dateTo, brandSafe, region };
@@ -349,8 +384,8 @@ async function getTrend({ dateFrom, dateTo, platform, brandSafe, region = 'all' 
 
 	if (isSingleDay) {
 		const [failedRows, totalRows] = await Promise.all([
-			getCtvFailedAgg({ dateFrom, dateTo: dateFrom, brandSafe, region, urls: platformUrls, groupBy: 'hour' }),
-			getCtvTotalAgg({ dateFrom, dateTo: dateFrom, brandSafe, region, urls: platformUrls, groupBy: 'hour' }),
+			getCtvFailedAgg({ dateFrom, dateTo: dateFrom, brandSafe, region, urls: platformUrls, groupBy: 'hour', db }),
+			getCtvTotalAgg({ dateFrom, dateTo: dateFrom, brandSafe, region, urls: platformUrls, groupBy: 'hour', db }),
 		]);
 		const labels = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`);
 		const failData = labels.map((_, h) => Number(failedRows.find(r => Number(r.hour) === h)?.req_total || 0));
@@ -364,8 +399,8 @@ async function getTrend({ dateFrom, dateTo, platform, brandSafe, region = 'all' 
 	}
 
 	const [failedRows, totalRows] = await Promise.all([
-		getCtvFailedAgg({ ...filters, urls: platformUrls, groupBy: 'date' }),
-		getCtvTotalAgg({ ...filters, urls: platformUrls, groupBy: 'date' }),
+		getCtvFailedAgg({ ...filters, urls: platformUrls, groupBy: 'date', db }),
+		getCtvTotalAgg({ ...filters, urls: platformUrls, groupBy: 'date', db }),
 	]);
 	const dates = Array.from(new Set([...failedRows.map(r => r.date), ...totalRows.map(r => r.date)])).sort();
 	const failMap = {};
@@ -384,7 +419,9 @@ async function getTrend({ dateFrom, dateTo, platform, brandSafe, region = 'all' 
 	};
 }
 
-async function downloadCsv({ platform, dateFrom, dateTo, brandSafe, type = 'failed', matchedBy = '', region = 'all' }) {
+async function downloadCsv({ platform, dateFrom, dateTo, brandSafe, type = 'failed', matchedBy = '', region = 'all', partner = 'TTD' }) {
+	const db = resolveDb(partner);
+	const { getAllFailedContentRowsByUrls, getAllFailedContentRowsExcludingUrls, getAllServedContentRowsByUrls, getAllServedContentRowsExcludingUrls } = getRepo(partner);
 	console.log(`[SVC:failure-queue] downloadCsv platform=${platform} dateFrom=${dateFrom} dateTo=${dateTo} type=${type} matchedBy=${matchedBy}`);
 	const urlMap = await getAllPlatformUrlMappings();
 	const isOthers = platform.toLowerCase() === 'others';
@@ -400,8 +437,8 @@ async function downloadCsv({ platform, dateFrom, dateTo, brandSafe, type = 'fail
 
 	if (type === 'enrichable') {
 		const rows = isOthers
-			? await getAllServedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, matchedBy })
-			: await getAllServedContentRowsByUrls({ ...filters, urls: platformUrls, matchedBy });
+			? await getAllServedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, matchedBy, db })
+			: await getAllServedContentRowsByUrls({ ...filters, urls: platformUrls, matchedBy, db });
 		const header = 'content_id,bundle_id,channel,requests_served,matched_by\n';
 		const body = rows.map(r => [esc(r.contentid), esc(r.url), esc(r.channel), r.req_total, esc(r.matchedby || '')].join(',')).join('\n');
 		return header + body;
@@ -409,8 +446,8 @@ async function downloadCsv({ platform, dateFrom, dateTo, brandSafe, type = 'fail
 
 	if (type === 'failed') {
 		const rows = isOthers
-			? await getAllFailedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, onlyUnmatched: true })
-			: await getAllFailedContentRowsByUrls({ ...filters, urls: platformUrls, onlyUnmatched: true });
+			? await getAllFailedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, onlyUnmatched: true, db })
+			: await getAllFailedContentRowsByUrls({ ...filters, urls: platformUrls, onlyUnmatched: true, db });
 		const header = 'content_id,bundle_id,channel,requests_failed,matched_by\n';
 		const body = rows.map(r => [esc(r.contentid), esc(r.url), esc(r.channel), r.req_total, esc(r.matchedby || 'Unmatched')].join(',')).join('\n');
 		return header + body;
@@ -419,11 +456,11 @@ async function downloadCsv({ platform, dateFrom, dateTo, brandSafe, type = 'fail
 	// type === 'all': both success=0 and success=1 rows
 	const [failedRows, servedRows] = await Promise.all([
 		isOthers
-			? getAllFailedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls })
-			: getAllFailedContentRowsByUrls({ ...filters, urls: platformUrls }),
+			? getAllFailedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, db })
+			: getAllFailedContentRowsByUrls({ ...filters, urls: platformUrls, db }),
 		isOthers
-			? getAllServedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls })
-			: getAllServedContentRowsByUrls({ ...filters, urls: platformUrls }),
+			? getAllServedContentRowsExcludingUrls({ ...filters, excludeUrls: mappedUrls, db })
+			: getAllServedContentRowsByUrls({ ...filters, urls: platformUrls, db }),
 	]);
 	const header = 'content_id,bundle_id,channel,requests,matched_by,type\n';
 	const failBody = failedRows.map(r => [esc(r.contentid), esc(r.url), esc(r.channel), r.req_total, esc(r.matchedby || 'Unmatched'), 'failed'].join(','));
@@ -431,7 +468,9 @@ async function downloadCsv({ platform, dateFrom, dateTo, brandSafe, type = 'fail
 	return header + [...failBody, ...servBody].join('\n');
 }
 
-async function getPeriodComparison({ dateFrom, dateTo, brandSafe, platformList, region = 'all' }) {
+async function getPeriodComparison({ dateFrom, dateTo, brandSafe, platformList, region = 'all', partner = 'TTD' }) {
+	const db = resolveDb(partner);
+	const { getCtvFailedAgg, getCtvTotalAgg } = getRepo(partner);
 	console.log(`[SVC:failure-queue] getPeriodComparison dateFrom=${dateFrom} dateTo=${dateTo}`);
 
 	const msPerDay = 86400000;
@@ -453,10 +492,10 @@ async function getPeriodComparison({ dateFrom, dateTo, brandSafe, platformList, 
 
 	const base = { brandSafe, region, urls, groupBy: 'date' };
 	const [curFailed, curTotal, prevFailed, prevTotal] = await Promise.all([
-		getCtvFailedAgg({ ...base, dateFrom, dateTo }),
-		getCtvTotalAgg({ ...base, dateFrom, dateTo }),
-		getCtvFailedAgg({ ...base, dateFrom: prevDateFrom, dateTo: prevDateTo }),
-		getCtvTotalAgg({ ...base, dateFrom: prevDateFrom, dateTo: prevDateTo }),
+		getCtvFailedAgg({ ...base, dateFrom, dateTo, db }),
+		getCtvTotalAgg({ ...base, dateFrom, dateTo, db }),
+		getCtvFailedAgg({ ...base, dateFrom: prevDateFrom, dateTo: prevDateTo, db }),
+		getCtvTotalAgg({ ...base, dateFrom: prevDateFrom, dateTo: prevDateTo, db }),
 	]);
 
 	const sum = rows => rows.reduce((s, r) => s + Number(r.req_total), 0);
@@ -478,7 +517,8 @@ async function getPeriodComparison({ dateFrom, dateTo, brandSafe, platformList, 
 	};
 }
 
-async function getContentHits({ platform, dateFrom, dateTo, brandSafe, matchedBy, region = 'all', limit = 50, offset = 0 }) {
+async function getContentHits({ platform, dateFrom, dateTo, brandSafe, matchedBy, region = 'all', limit = 50, offset = 0, partner = 'TTD' }) {
+	const db = resolveDb(partner);
 	console.log(`[SVC:failure-queue] getContentHits platform=${platform} matchedBy=${matchedBy} offset=${offset}`);
 	const urlMap = await getAllPlatformUrlMappings();
 	const platformUrls = [...urlMap.entries()]
@@ -486,7 +526,7 @@ async function getContentHits({ platform, dateFrom, dateTo, brandSafe, matchedBy
 		.map(([url]) => url);
 	if (!platformUrls.length) return { rows: [], hasMore: false };
 
-	const { rows, hasMore } = await getCtvContentHits({ dateFrom, dateTo, brandSafe, urls: platformUrls, matchedBy, limit, offset });
+	const { rows, hasMore } = await getCtvContentHits({ dateFrom, dateTo, brandSafe, urls: platformUrls, matchedBy, limit, offset, db });
 	return {
 		rows: rows.map(r => ({ contentId: r.contentid, hits: Number(r.hits), title: r.title || '', series: r.series || '' })),
 		hasMore,
@@ -494,9 +534,10 @@ async function getContentHits({ platform, dateFrom, dateTo, brandSafe, matchedBy
 }
 
 
-async function getSegmentRankingsSvc({ dateFrom, dateTo, brandSafe, region, n = 10 }) {
+async function getSegmentRankingsSvc({ dateFrom, dateTo, brandSafe, region, n = 10, partner = 'TTD' }) {
+	const db = resolveDb(partner);
 	console.log(`[SVC:failure-queue] getSegmentRankings dateFrom=${dateFrom} dateTo=${dateTo}`);
-	const { top, bottom } = await getSegmentRankings({ dateFrom, dateTo, brandSafe, region, n });
+	const { top, bottom } = await getSegmentRankings({ dateFrom, dateTo, brandSafe, region, n, db });
 	const map = row => ({
 		segment: row.seg_tag,
 		timesServed: Number(row.times_served),
@@ -506,10 +547,11 @@ async function getSegmentRankingsSvc({ dateFrom, dateTo, brandSafe, region, n = 
 	return { top: top.map(map), bottom: bottom.map(map) };
 }
 
-async function getSegmentDetailSvc({ segment, dateFrom, dateTo, brandSafe, region }) {
+async function getSegmentDetailSvc({ segment, dateFrom, dateTo, brandSafe, region, partner = 'TTD' }) {
+	const db = resolveDb(partner);
 	console.log(`[SVC:failure-queue] getSegmentDetail segment=${segment}`);
 	const urlMap = await getAllPlatformUrlMappings();
-	const { overview, platforms } = await getSegmentDetail({ dateFrom, dateTo, brandSafe, region, segment });
+	const { overview, platforms } = await getSegmentDetail({ dateFrom, dateTo, brandSafe, region, segment, db });
 	const total   = Number(overview.total_requests ?? 0);
 	const served  = Number(overview.times_served   ?? 0);
 	const content = Number(overview.distinct_content ?? 0);
@@ -534,13 +576,14 @@ async function getSegmentDetailSvc({ segment, dateFrom, dateTo, brandSafe, regio
 }
 
 
-async function getPlatformSegmentCountsSvc({ dateFrom, dateTo, brandSafe, region }) {
+async function getPlatformSegmentCountsSvc({ dateFrom, dateTo, brandSafe, region, partner = 'TTD' }) {
+  const db = resolveDb(partner);
   const urlMap = await getAllPlatformUrlMappings();
   const urls = Array.from(urlMap.keys());
   // Fetch mapped-platform counts + Others in parallel
   const [rows, othersRows] = await Promise.all([
-    getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, urls }),
-    getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, excludeUrls: urls }),
+    getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, urls, db }),
+    getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, excludeUrls: urls, db }),
   ]);
   const result = {};
   for (const r of rows) {
@@ -552,7 +595,9 @@ async function getPlatformSegmentCountsSvc({ dateFrom, dateTo, brandSafe, region
   return result;
 }
 
-async function getPlatformSegmentDetailSvc({ platform, dateFrom, dateTo, brandSafe, region }) {
+async function getPlatformSegmentDetailSvc({ platform, dateFrom, dateTo, brandSafe, region, partner = 'TTD' }) {
+  const db = resolveDb(partner);
+  const { getCtvFailedAgg, getCtvTotalAgg } = getRepo(partner);
   const urlMap = await getAllPlatformUrlMappings();
   const allUrls = Array.from(urlMap.keys());
   const isOthers = platform.toLowerCase() === 'others';
@@ -560,9 +605,9 @@ async function getPlatformSegmentDetailSvc({ platform, dateFrom, dateTo, brandSa
   const excludeUrls = isOthers ? allUrls : [];
   if (!urls.length && !isOthers) return [];
   const [rows, totalRows, failedRows] = await Promise.all([
-    getPlatformSegmentDetail({ dateFrom, dateTo, brandSafe, region, urls, excludeUrls }),
-    getCtvTotalAgg({ dateFrom, dateTo, brandSafe, region, urls, excludeUrls: isOthers ? allUrls : [], groupBy: 'url' }),
-    getCtvFailedAgg({ dateFrom, dateTo, brandSafe, region, urls, excludeUrls: isOthers ? allUrls : [], groupBy: 'url' }),
+    getPlatformSegmentDetail({ dateFrom, dateTo, brandSafe, region, urls, excludeUrls, db }),
+    getCtvTotalAgg({ dateFrom, dateTo, brandSafe, region, urls, excludeUrls: isOthers ? allUrls : [], groupBy: 'url', db }),
+    getCtvFailedAgg({ dateFrom, dateTo, brandSafe, region, urls, excludeUrls: isOthers ? allUrls : [], groupBy: 'url', db }),
   ]);
   const totalServed = Math.max(1,
     totalRows.reduce((s, r) => s + Number(r.req_total), 0) -
@@ -575,4 +620,174 @@ async function getPlatformSegmentDetailSvc({ platform, dateFrom, dateTo, brandSa
     servedPct: Number(r.served) / totalServed * 100,
   }));
 }
-module.exports = { getByPlatform, getPlatformSegmentCountsSvc, getPlatformSegmentDetailSvc, getSegmentRankingsSvc, getSegmentDetailSvc, getByPlatformDetail, getPlatformSummary, getFilterOptions, getTrend, downloadCsv, getContentHits, getPeriodComparison };
+
+async function getPubmaticSummarySvc({ dateFrom, dateTo, brandSafe, region, partner = 'Pubmatic' }) {
+  const db = resolveDb(partner);
+  const urlMap = await getAllPlatformUrlMappings();
+  const knownAppIds = Array.from(urlMap.keys());
+  const { kpi, matched, unmatched, split, platformRows, contentIds, contentIdsMatched, servedHits, matchedContentTotalRequests } = await pubmaticRepo.getPubmaticKpiSummary({ dateFrom, dateTo, region, knownAppIds, db });
+
+  const totalHits                    = Number(kpi.total_hits                                           || 0);
+  const uniqueTotal                  = Number(kpi.unique_total                                          || 0);
+  const uniqueMatched                = Number(matched.unique_matched                                    || 0);
+  const uniqueUnmatched              = Number(unmatched.unique_unmatched                                || 0);
+  const matchRate                    = uniqueTotal > 0 ? (uniqueMatched / uniqueTotal) * 100 : 0;
+  const knownHits                    = Number(split.known_hits                                         || 0);
+  const unknownHits                  = Number(split.unknown_hits                                       || 0);
+  const uniqueContentIds             = Number(contentIds.unique_content_ids                            || 0);
+  const uniqueContentMatched         = Number(contentIdsMatched.unique_content_matched                  || 0);
+  const contentMatchRate             = uniqueContentIds > 0 ? (uniqueContentMatched / uniqueContentIds) * 100 : 0;
+  const servedRequests               = Number(servedHits.served_hits                                   || 0);
+  const matchedContentTotalReqs      = Number(matchedContentTotalRequests.matched_content_total_requests || 0);
+
+  // Resolve per-appid rows to named platforms; aggregate unknown
+  const platMap = {};
+  let unknownAgg = 0;
+  for (const row of (platformRows || [])) {
+    const name = urlMap.get(row.appid);
+    const hits = Number(row.hits);
+    if (name) platMap[name] = (platMap[name] || 0) + hits;
+    else      unknownAgg   += hits;
+  }
+  const platformBreakdown = [
+    ...Object.entries(platMap).map(([platform, hits]) => ({ platform, hits })).sort((a, b) => b.hits - a.hits),
+    ...(unknownAgg > 0 ? [{ platform: 'Unknown', hits: unknownAgg }] : []),
+  ];
+
+  return { totalHits, uniqueTotal, uniqueMatched, uniqueUnmatched, matchRate, knownHits, unknownHits, platformBreakdown, uniqueContentIds, uniqueContentMatched, contentMatchRate, servedRequests, matchedContentTotalReqs };
+}
+
+async function getPubmaticAppidBreakdownSvc({ dateFrom, dateTo, region, partner = 'Pubmatic' }) {
+  const db = resolveDb(partner);
+  const urlMap = await getAllPlatformUrlMappings();
+  const rows = await pubmaticRepo.getPubmaticDistinctAppids({ dateFrom, dateTo, region, db });
+
+  const platformMap = {};
+  const unknownList = [];
+
+  for (const r of rows) {
+    const name = urlMap.get(r.appid);
+    if (name) {
+      if (!platformMap[name]) platformMap[name] = { platform: name, appids: [] };
+      platformMap[name].appids.push(r.appid);
+    } else {
+      unknownList.push(r.appid);
+    }
+  }
+
+  const breakdown = [
+    ...Object.values(platformMap).sort((a, b) => b.appids.length - a.appids.length),
+    ...(unknownList.length ? [{ platform: 'Unknown', appids: unknownList }] : []),
+  ].map(p => ({ ...p, count: p.appids.length }));
+
+  const knownCount   = rows.filter(r => urlMap.has(r.appid)).length;
+  const unknownCount = rows.filter(r => !urlMap.has(r.appid)).length;
+
+  return { totalAppids: rows.length, knownCount, unknownCount, breakdown };
+}
+
+/**
+ * Per-platform content ID coverage: how many Pubmatic content_ids (in the
+ * selected period) are present in our dpttd platform datasets.
+ *
+ * Approach:
+ *  1. platform_url_mapping → platform → appids (all known platforms)
+ *  2. dpttd cache (lazy, built in background at startup) → per-platform Sets
+ *  3. For each platform query Pubmatic for distinct content_ids → intersect
+ */
+async function getPubmaticContentCoverageSvc({ dateFrom, dateTo, region, partner = 'Pubmatic' }) {
+  const db = resolveDb(partner);
+  const urlMap = await getAllPlatformUrlMappings();
+
+  // Build platform → appids map from platform_url_mapping
+  const platformToAppids = new Map();
+  for (const [appid, platform] of urlMap.entries()) {
+    if (!platformToAppids.has(platform)) platformToAppids.set(platform, []);
+    platformToAppids.get(platform).push(appid);
+  }
+
+  // Load dpttd content-ID cache (may await up to ~140s on first call after startup)
+  const { perPlatform: dpttdPerPlatform } = await getContentIdCache();
+
+  // Query Pubmatic for each known platform's content_ids in parallel, then intersect
+  const results = await Promise.all(
+    Array.from(platformToAppids.entries()).map(async ([platform, appids]) => {
+      const rows = await pubmaticRepo.getPubmaticDistinctContentIdsByAppids({
+        dateFrom, dateTo, region, appids, db,
+      });
+      const pubmaticSet = new Set(rows.map(r => r.content_id));
+      const dpttdSet    = dpttdPerPlatform.get(platform);
+      const dpttdCount  = dpttdSet ? dpttdSet.size : 0;
+
+      let covered = 0;
+      if (dpttdSet && dpttdSet.size > 0) {
+        for (const id of pubmaticSet) {
+          if (dpttdSet.has(id)) covered++;
+        }
+      }
+
+      const total = pubmaticSet.size;
+      const coverageRate = total > 0 ? +((covered / total) * 100).toFixed(1) : 0;
+
+      return {
+        platform,
+        pubmaticIds: total,
+        dpttdIds:    dpttdCount,
+        covered,
+        uncovered:   total - covered,
+        coverageRate,
+        hasDpttdData: dpttdCount > 0,
+      };
+    })
+  );
+
+  return results
+    .filter(r => r.pubmaticIds > 0)
+    .sort((a, b) => b.pubmaticIds - a.pubmaticIds);
+}
+
+async function getPubmaticContentGapSvc({ dateFrom, dateTo, region, partner = 'Pubmatic' }) {
+  const db     = resolveDb(partner);
+  const urlMap = await getAllPlatformUrlMappings();
+  const rows   = await pubmaticRepo.getPubmaticContentGap({ dateFrom, dateTo, region, db });
+
+  return rows.map(r => {
+    const platform   = urlMap.get(r.appid) ?? null;
+    const total      = Number(r.total_distinct);
+    const matched    = Number(r.matched);
+    const unmatched  = Number(r.unmatched);
+    const matchRate  = total ? +((matched / total) * 100).toFixed(1) : 0;
+    return {
+      appid:    r.appid,
+      platform: platform ?? `Unknown (${r.appid})`,
+      known:    !!platform,
+      total,
+      matched,
+      unmatched,
+      matchRate,
+    };
+  });
+}
+
+const MATCHBY_LABELS = { PB_C: 'ContentId', PB_G: 'Genre', PB_S: 'Series', PB_TS: 'Title & Series' };
+
+async function getPubmaticMatchbyBreakdownSvc({ dateFrom, dateTo, region, partner = 'Pubmatic' }) {
+  const db     = resolveDb(partner);
+  const urlMap = await getAllPlatformUrlMappings();
+  const rows   = await pubmaticRepo.getPubmaticMatchbyBreakdown({ dateFrom, dateTo, region, db });
+
+  return rows.map(r => {
+    const platform = urlMap.get(r.appid) ?? null;
+    return {
+      matchedby:        r.matchedby,
+      matchLabel:       MATCHBY_LABELS[r.matchedby] ?? r.matchedby,
+      appid:            r.appid,
+      platform:         platform ?? `Unknown (${r.appid})`,
+      known:            !!platform,
+      totalHits:        Number(r.total_hits),
+      uniqueContentIds: Number(r.unique_content_ids),
+    };
+  });
+}
+
+module.exports = { getByPlatform, getPubmaticAppidBreakdownSvc, getPubmaticContentCoverageSvc, getPubmaticContentGapSvc, getPubmaticMatchbyBreakdownSvc, getPubmaticSummarySvc, getPlatformSegmentCountsSvc, getPlatformSegmentDetailSvc, getSegmentRankingsSvc, getSegmentDetailSvc, getByPlatformDetail, getPlatformSummary, getFilterOptions, getTrend, downloadCsv, getContentHits, getPeriodComparison };

@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, SimpleChanges, signal } from '@angular/core';
+import { Component, Input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subject, takeUntil } from 'rxjs';
 import { ApiService } from '../../../services/api.service';
@@ -11,37 +11,20 @@ import { FailureQueueFilters, PlatformGroup, PlatformSegmentItem } from '../../.
   templateUrl: './platform-breakdown.component.html',
   styleUrl: './platform-breakdown.component.scss',
 })
-export class PlatformBreakdownComponent implements OnChanges {
+export class PlatformBreakdownComponent {
   @Input() platforms: PlatformGroup[] = [];
   @Input() loading = false;
   @Input() filters!: FailureQueueFilters;
 
-  segCounts     = signal<Record<string, number>>({});
-  segCountsLoad = signal(false);
-
   // modal
-  modalPlatform   = signal<PlatformGroup | null>(null);
-  modalTab        = signal<'segments' | 'match'>('segments');
-  segDetailLoad   = signal(false);
-  segDetail       = signal<PlatformSegmentItem[]>([]);
+  modalPlatform = signal<PlatformGroup | null>(null);
+  modalTab      = signal<'segments' | 'match'>('segments');
+  segDetailLoad = signal(false);
+  segDetail     = signal<PlatformSegmentItem[]>([]);
 
   private destroy$ = new Subject<void>();
 
   constructor(private api: ApiService) {}
-
-  ngOnChanges(c: SimpleChanges): void {
-    if (c['filters'] && this.filters) this.loadCounts();
-  }
-
-  private loadCounts(): void {
-    this.segCountsLoad.set(true);
-    this.api.getPlatformSegmentCounts(this.filters)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: d => { this.segCounts.set(d); this.segCountsLoad.set(false); },
-        error: ()  => this.segCountsLoad.set(false),
-      });
-  }
 
   openModal(p: PlatformGroup, event: Event): void {
     event.stopPropagation();

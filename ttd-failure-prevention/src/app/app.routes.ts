@@ -17,11 +17,11 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./core/components/dashboard/dashboard.component').then(m => m.DashboardComponent),
       },
+      {
+        path: 'platform/:name',
+        loadComponent: () =>
+          import('./core/components/platform-detail/platform-detail.component').then(m => m.PlatformDetailComponent),
+      },
     ],
-  },
-  {
-    path: 'platform/:name',
-    loadComponent: () =>
-      import('./core/components/platform-detail/platform-detail.component').then(m => m.PlatformDetailComponent),
   },
 ];

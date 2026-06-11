@@ -112,6 +112,17 @@
   i { font-size: 13px; }
 }
 
+.pub-loading {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 60px; color: #9ca3af; font-size: 14px;
+}
+.pub-spinner {
+  width: 24px; height: 24px;
+  border: 2px solid #e5e7eb; border-top-color: #2d9b6f;
+  border-radius: 50%; animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .slabel {
   font-size: 10px; font-weight: 700;
   letter-spacing: .09em; text-transform: uppercase;

@@ -1,65 +1,9 @@
-:host { display: block; }
-
-.layout {
-  display: flex;
-  min-height: 100vh;   /* grow with content, don't clip */
-  background: var(--bg);
-}
-
-/* ── Sidebar ── */
-.sidebar {
-  width: 220px; min-width: 220px;
-  background: var(--sidebar-bg);
-  display: flex; flex-direction: column;
-  position: sticky; top: 0; height: 100vh; /* sticks while page scrolls */
-  overflow-y: auto; flex-shrink: 0;
-}
-
-.sidebar-logo {
-  padding: 20px 16px 16px;
-  border-bottom: 1px solid rgba(255,255,255,.08);
-}
-
-.logo-mark { display: flex; align-items: center; gap: 10px; }
-
-.logo-icon {
-  width: 34px; height: 34px;
-  background: var(--accent);
-  border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 800; color: #fff; letter-spacing: -.5px;
-}
-
-.logo-text { font-size: 14px; font-weight: 600; color: #fff; }
-.logo-sub  { font-size: 11px; color: var(--sidebar-text); }
-
-.nav-section { padding: 12px 0; flex: 1; }
-
-.nav-label {
-  font-size: 10px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: .08em; color: #475569; padding: 0 16px 8px;
-}
-
-.nav-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 16px; font-size: 13px; font-weight: 500;
-  color: var(--sidebar-text); text-decoration: none; cursor: pointer;
-  transition: background .15s, color .15s;
-
-  svg { flex-shrink: 0; }
-  &:hover { background: rgba(255,255,255,.06); color: #fff; }
-  &.active { background: rgba(255,255,255,.10); color: #fff; }
-}
-
-.sidebar-footer { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.08); }
-.version-tag { font-size: 11px; color: #475569; }
-
-/* ── Main ── */
-.main {
-  flex: 1;
+/* sidebar removed — layout component provides it */
+:host {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 /* ── Top bar ── */

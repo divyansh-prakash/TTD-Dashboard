@@ -172,4 +172,59 @@ async function getPlatformSegmentDetail(req, res) {
   } catch (err) { console.error('[CTRL:getPlatformSegmentDetail]', err.message); res.status(500).json({ error: err.message }); }
 }
 
-module.exports = { getByPlatform, getByPlatformDetail, getPlatformSummary, getFilterOptions, getTrend, download, getContentHits, getPeriodComparison, getSegmentRankings, getSegmentDetail, getPlatformSegmentCounts, getPlatformSegmentDetail };
+
+async function getPubmaticSummary(req, res) {
+  try {
+    const { dateFrom, dateTo, brandSafe, region } = req.query;
+    const result = await service.getPubmaticSummarySvc({
+      dateFrom: dateFrom || '', dateTo: dateTo || '',
+      brandSafe: brandSafe || 'all', region: region || 'all',
+    });
+    res.json(result);
+  } catch (err) { console.error('[CTRL:getPubmaticSummary]', err.message); res.status(500).json({ error: err.message }); }
+}
+
+async function getPubmaticAppidBreakdown(req, res) {
+  try {
+    const { dateFrom, dateTo, region } = req.query;
+    const result = await service.getPubmaticAppidBreakdownSvc({
+      dateFrom: dateFrom || '', dateTo: dateTo || '', region: region || 'all',
+    });
+    res.json(result);
+  } catch (err) { console.error('[CTRL:getPubmaticAppidBreakdown]', err.message); res.status(500).json({ error: err.message }); }
+}
+
+// getPubmaticContentIdBreakdown disabled — cross-server approach abandoned.
+// async function getPubmaticContentIdBreakdown(req, res) { ... }
+
+async function getPubmaticContentGap(req, res) {
+  try {
+    const { dateFrom, dateTo, region } = req.query;
+    const result = await service.getPubmaticContentGapSvc({
+      dateFrom: dateFrom || '', dateTo: dateTo || '', region: region || 'all',
+    });
+    res.json(result);
+  } catch (err) { console.error('[CTRL:getPubmaticContentGap]', err.message); res.status(500).json({ error: err.message }); }
+}
+
+async function getPubmaticContentCoverage(req, res) {
+  try {
+    const { dateFrom, dateTo, region } = req.query;
+    const result = await service.getPubmaticContentCoverageSvc({
+      dateFrom: dateFrom || '', dateTo: dateTo || '', region: region || 'all',
+    });
+    res.json(result);
+  } catch (err) { console.error('[CTRL:getPubmaticContentCoverage]', err.message); res.status(500).json({ error: err.message }); }
+}
+
+async function getPubmaticMatchbyBreakdown(req, res) {
+  try {
+    const { dateFrom, dateTo, region } = req.query;
+    const result = await service.getPubmaticMatchbyBreakdownSvc({
+      dateFrom: dateFrom || '', dateTo: dateTo || '', region: region || 'all',
+    });
+    res.json(result);
+  } catch (err) { console.error('[CTRL:getPubmaticMatchbyBreakdown]', err.message); res.status(500).json({ error: err.message }); }
+}
+
+module.exports = { getPubmaticAppidBreakdown, getPubmaticContentGap, getPubmaticContentCoverage, getPubmaticMatchbyBreakdown, getPubmaticSummary, getByPlatform, getByPlatformDetail, getPlatformSummary, getFilterOptions, getTrend, download, getContentHits, getPeriodComparison, getSegmentRankings, getSegmentDetail, getPlatformSegmentCounts, getPlatformSegmentDetail };

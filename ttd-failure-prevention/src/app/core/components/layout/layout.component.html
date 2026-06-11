@@ -3,10 +3,10 @@
   <nav class="sidenav">
     <div class="brand"><div class="brand-dot"></div>silverpush</div>
 
-    <a class="nav-item" routerLink="/dashboard" routerLinkActive="active">
+    <a class="nav-item" [class.active]="isDashboardActive()" routerLink="/dashboard">
       <i class="ti ti-layout-dashboard"></i>Dashboard
     </a>
-    <a class="nav-item" routerLink="/explore" routerLinkActive="active">
+    <a class="nav-item" [class.active]="isExploreActive()" routerLink="/explore">
       <i class="ti ti-telescope"></i>Explore
     </a>
   </nav>

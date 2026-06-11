@@ -28,6 +28,7 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
   downloadingZones     = signal<Set<string>>(new Set());
   downloadingGroups    = signal<Set<string>>(new Set());
 
+  readonly Math   = Math;
   platformSort    = signal<'default' | 'desc' | 'asc'>('default');
   comparison      = signal<PeriodComparison | null>(null);
   catSortMap      = signal<Record<string, 'default' | 'desc' | 'asc'>>({});
