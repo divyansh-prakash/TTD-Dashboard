@@ -769,25 +769,32 @@ async function getPubmaticContentGapSvc({ dateFrom, dateTo, region, partner = 'P
   });
 }
 
-const MATCHBY_LABELS = { PB_C: 'ContentId', PB_G: 'Genre', PB_S: 'Series', PB_TS: 'Title & Series' };
+const MATCHBY_LABELS = { PB_C: 'ContentId', PB_G: 'Genre', PB_S: 'Series', PB_TS: 'Title & Series', PB_CAT: 'Category' };
+const MATCHBY_ORDER  = ['PB_C', 'PB_CAT', 'PB_TS', 'PB_S', 'PB_G'];
 
 async function getPubmaticMatchbyBreakdownSvc({ dateFrom, dateTo, region, partner = 'Pubmatic' }) {
-  const db     = resolveDb(partner);
-  const urlMap = await getAllPlatformUrlMappings();
-  const rows   = await pubmaticRepo.getPubmaticMatchbyBreakdown({ dateFrom, dateTo, region, db });
+  const db   = resolveDb(partner);
+  const rows = await pubmaticRepo.getPubmaticMatchbyBreakdown({ dateFrom, dateTo, region, db });
 
-  return rows.map(r => {
+  const urlMap = await getAllPlatformUrlMappings();
+  const mapped = rows.map(r => {
     const platform = urlMap.get(r.appid) ?? null;
     return {
-      matchedby:        r.matchedby,
-      matchLabel:       MATCHBY_LABELS[r.matchedby] ?? r.matchedby,
-      appid:            r.appid,
-      platform:         platform ?? `Unknown (${r.appid})`,
-      known:            !!platform,
-      totalHits:        Number(r.total_hits),
-      uniqueContentIds: Number(r.unique_content_ids),
+      matchedby:  r.matchedby,
+      matchLabel: MATCHBY_LABELS[r.matchedby] ?? r.matchedby,
+      appid:      r.appid,
+      platform:   platform ?? `Unknown (${r.appid})`,
+      known:      !!platform,
+      totalRows:  Number(r.total_rows),
+      totalHits:  Number(r.total_hits),
     };
   });
+  mapped.sort((a, b) => {
+    const ai = MATCHBY_ORDER.indexOf(a.matchedby);
+    const bi = MATCHBY_ORDER.indexOf(b.matchedby);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+  return mapped;
 }
 
 module.exports = { getByPlatform, getPubmaticAppidBreakdownSvc, getPubmaticContentCoverageSvc, getPubmaticContentGapSvc, getPubmaticMatchbyBreakdownSvc, getPubmaticSummarySvc, getPlatformSegmentCountsSvc, getPlatformSegmentDetailSvc, getSegmentRankingsSvc, getSegmentDetailSvc, getByPlatformDetail, getPlatformSummary, getFilterOptions, getTrend, downloadCsv, getContentHits, getPeriodComparison };
