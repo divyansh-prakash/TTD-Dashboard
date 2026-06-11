@@ -317,10 +317,10 @@ async function getPubmaticContentGap({ dateFrom, dateTo, region, db }) {
   return query(sql, db);
 }
 
-const MATCHBY_TYPES = ['PB_C', 'PB_G', 'PB_S', 'PB_TS'];
+const MATCHBY_TYPES = ['PB_C', 'PB_G', 'PB_S', 'PB_TS', 'PB_CAT'];
 
 /**
- * Per-appid, per-matchedby hit counts for the 4 known Pubmatic match categories.
+ * Per-matchedby row count and total hits for the 4 known Pubmatic match categories.
  */
 async function getPubmaticMatchbyBreakdown({ dateFrom, dateTo, region, db }) {
   const conds = [
@@ -333,8 +333,8 @@ async function getPubmaticMatchbyBreakdown({ dateFrom, dateTo, region, db }) {
     SELECT
       matchedby,
       appid,
-      SUM(total_count)  AS total_hits,
-      uniq(content_id)  AS unique_content_ids
+      count()           AS total_rows,
+      SUM(total_count)  AS total_hits
     FROM ctv_agg_data
     WHERE ${conds.join(' AND ')}
     GROUP BY matchedby, appid

@@ -4,24 +4,31 @@ import { Subject, takeUntil } from 'rxjs';
 import { ApiService } from '../../../services/api.service';
 import { FailureQueueFilters, PubmaticMatchbyRow } from '../../../models/failure-queue.model';
 
-interface AppidRow {
-  appid:            string;
-  platform:         string;
-  known:            boolean;
-  totalHits:        number;
-  uniqueContentIds: number;
+interface UnknownSubRow {
+  appid:     string;
+  totalRows: number;
+  totalHits: number;
+}
+
+interface PlatformRow {
+  appid:      string;
+  platform:   string;
+  known:      boolean;
+  totalRows:  number;
+  totalHits:  number;
+  subRows?:   UnknownSubRow[];
 }
 
 interface MatchbyGroup {
-  matchedby:        string;
-  matchLabel:       string;
-  totalHits:        number;
-  uniqueContentIds: number;
-  appidCount:       number;
-  rows:             AppidRow[];
+  matchedby:       string;
+  matchLabel:      string;
+  totalRows:       number;
+  totalHits:       number;
+  knownTotalHits:  number;
+  rows:            PlatformRow[];
 }
 
-const MATCHBY_ORDER = ['PB_C', 'PB_G', 'PB_S', 'PB_TS'];
+const MATCHBY_ORDER = ['PB_C', 'PB_CAT', 'PB_TS', 'PB_S', 'PB_G'];
 
 @Component({
   selector: 'app-pub-matchby',
@@ -36,26 +43,54 @@ export class PubmaticMatchbyComponent implements OnChanges, OnDestroy {
   rows    = signal<PubmaticMatchbyRow[]>([]);
   loading = signal(false);
 
+  // Keys: matchedby for outer accordions, `${matchedby}:unknown` for the nested unknown accordion
   openGroups = signal<Set<string>>(new Set());
+
+  totalMatchedHits = computed(() => this.groups().reduce((s, g) => s + g.totalHits, 0));
 
   groups = computed<MatchbyGroup[]>(() => {
     const map = new Map<string, MatchbyGroup>();
+
     for (const r of this.rows()) {
       if (!map.has(r.matchedby)) {
         map.set(r.matchedby, {
           matchedby: r.matchedby, matchLabel: r.matchLabel,
-          totalHits: 0, uniqueContentIds: 0, appidCount: 0, rows: [],
+          totalRows: 0, totalHits: 0, knownTotalHits: 0, rows: [],
         });
       }
       const g = map.get(r.matchedby)!;
-      g.totalHits        += r.totalHits;
-      g.uniqueContentIds += r.uniqueContentIds;
-      g.appidCount++;
-      g.rows.push({ appid: r.appid, platform: r.platform, known: r.known, totalHits: r.totalHits, uniqueContentIds: r.uniqueContentIds });
+      g.totalRows += r.totalRows;
+      g.totalHits += r.totalHits;
+
+      if (r.known) {
+        g.knownTotalHits += r.totalHits;
+        const existing = g.rows.find(row => row.known && row.platform === r.platform);
+        if (existing) {
+          existing.totalRows += r.totalRows;
+          existing.totalHits += r.totalHits;
+        } else {
+          g.rows.push({ appid: r.appid, platform: r.platform, known: true, totalRows: r.totalRows, totalHits: r.totalHits });
+        }
+      } else {
+        const unknownRow = g.rows.find(row => !row.known);
+        if (unknownRow) {
+          unknownRow.totalRows += r.totalRows;
+          unknownRow.totalHits += r.totalHits;
+          unknownRow.subRows!.push({ appid: r.appid, totalRows: r.totalRows, totalHits: r.totalHits });
+        } else {
+          g.rows.push({ appid: r.appid, platform: 'Unknown', known: false, totalRows: r.totalRows, totalHits: r.totalHits,
+            subRows: [{ appid: r.appid, totalRows: r.totalRows, totalHits: r.totalHits }] });
+        }
+      }
     }
-    // Sort rows inside each group by totalHits desc
-    for (const g of map.values()) g.rows.sort((a, b) => b.totalHits - a.totalHits);
-    // Return in canonical order
+
+    for (const g of map.values()) {
+      const known   = g.rows.filter(r => r.known).sort((a, b) => b.totalHits - a.totalHits);
+      const unknown = g.rows.filter(r => !r.known);
+      if (unknown[0]?.subRows) unknown[0].subRows.sort((a, b) => b.totalHits - a.totalHits);
+      g.rows = [...known, ...unknown];
+    }
+
     return MATCHBY_ORDER.map(k => map.get(k)).filter(Boolean) as MatchbyGroup[];
   });
 
