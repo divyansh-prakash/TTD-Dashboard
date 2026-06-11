@@ -1,0 +1,83 @@
+:host { display: block; }
+
+.kgrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.kcard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  border-top: 3px solid #e5e7eb;
+  overflow: hidden;
+
+  &.t { border-top-color: #3b82f6; }
+  &.s { border-top-color: #2d9b6f; }
+  &.f { border-top-color: #ef4444; }
+  &.r { border-top-color: #2d9b6f; }
+
+  &.skeleton {
+    height: 140px;
+    background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+    background-size: 200% 100%;
+    animation: shimmer 3s infinite;
+    border-top-color: #e5e7eb;
+  }
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.kcard-top { padding: 16px 16px 14px; }
+
+.klbl {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 500;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  i { font-size: 14px; }
+}
+
+.kval {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-bottom: 5px;
+  font-family: var(--mono);
+
+  &.bl { color: #1d4ed8; }
+  &.gr { color: #166534; }
+  &.rd { color: #991b1b; }
+}
+
+.ktrend {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-bottom: 8px;
+  min-height: 16px;
+}
+
+.up { color: #2d9b6f; font-weight: 600; }
+.dn { color: #ef4444; font-weight: 600; }
+
+.badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  margin-top: 2px;
+
+  &.hl { background: #d1fae5; color: #065f46; }
+  &.wn { background: #fef3c7; color: #92400e; }
+  &.cr { background: #fee2e2; color: #991b1b; }
+}

@@ -1,0 +1,80 @@
+<div class="panel-card">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">Matchby Breakdown</div>
+      <div class="panel-sub">Requests served per match category (PB_C · PB_G · PB_S · PB_TS) — expand to see per app ID detail</div>
+    </div>
+    @if (loading()) { <div class="loading-chip">Loading…</div> }
+  </div>
+
+  @if (groups().length) {
+
+    <!-- Sticky column headers -->
+    <div class="col-header-row">
+      <div class="ch ch-name">Match Category</div>
+      <div class="ch ch-bar"></div>
+      <div class="ch ch-num">Total Requests</div>
+      <div class="ch ch-num">Unique Content IDs</div>
+      <div class="ch ch-num">App IDs</div>
+    </div>
+
+    <!-- Scrollable accordion area -->
+    <div class="acc-scroll">
+      @for (g of groups(); track g.matchedby) {
+
+        <!-- Accordion header -->
+        <div class="group-header" (click)="toggle(g.matchedby)">
+          <div class="gh-name">
+            <span class="chevron" [class.open]="openGroups().has(g.matchedby)">›</span>
+            <span class="gh-code">{{ g.matchedby }}</span>
+            <span class="gh-label">{{ g.matchLabel }}</span>
+          </div>
+          <div class="gh-bar-cell">
+            <div class="bar-track">
+              <div class="bar-fill" [style.width.%]="pct(g.totalHits, groups()[0].totalHits)"></div>
+            </div>
+          </div>
+          <span class="gh-num hits-val">{{ fmt(g.totalHits) }}</span>
+          <span class="gh-num">{{ fmt(g.uniqueContentIds) }}</span>
+          <span class="gh-num appid-count">{{ g.appidCount }}</span>
+        </div>
+
+        <!-- Accordion body -->
+        @if (openGroups().has(g.matchedby)) {
+          <div class="group-body">
+            <div class="body-inner">
+
+              <!-- Inner column headers -->
+              <div class="inner-col-header">
+                <div class="ich ich-name">App ID / Platform</div>
+                <div class="ich ich-num">Total Requests</div>
+                <div class="ich ich-num">Unique Content IDs</div>
+              </div>
+
+              @for (r of g.rows; track r.appid) {
+                <div class="appid-row">
+                  <div class="ar-name">
+                    <span class="appid-label" [class.unknown-appid]="!r.known" [title]="r.appid">{{ r.appid }}</span>
+                    @if (r.known) {
+                      <span class="platform-tag">{{ r.platform }}</span>
+                    }
+                    <div class="inner-bar">
+                      <div class="bar-fill" [style.width.%]="pct(r.totalHits, g.totalHits)"></div>
+                    </div>
+                  </div>
+                  <span class="ar-num hits-val">{{ fmt(r.totalHits) }}</span>
+                  <span class="ar-num">{{ fmt(r.uniqueContentIds) }}</span>
+                </div>
+              }
+
+            </div>
+          </div>
+        }
+
+      }
+    </div>
+
+  } @else if (!loading()) {
+    <div class="empty-state">No matchby data for the selected date range.</div>
+  }
+</div>

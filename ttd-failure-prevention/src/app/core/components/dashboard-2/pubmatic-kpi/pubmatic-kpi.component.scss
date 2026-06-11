@@ -1,0 +1,39 @@
+:host { display: block; }
+
+.kgrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.kcard {
+  background: #fff; border: 1px solid #e5e7eb;
+  border-radius: 10px; border-top: 3px solid #e5e7eb;
+  padding: 16px; display: flex; flex-direction: column; gap: 4px;
+
+  &.blue   { border-top-color: #3b82f6; }
+  &.teal   { border-top-color: #0d9488; }
+  &.gray   { border-top-color: #6b7280; }
+  &.green  { border-top-color: #16a34a; }
+  &.red    { border-top-color: #dc2626; }
+  &.amber  { border-top-color: #d97706; }
+  &.indigo  { border-top-color: #4f46e5; }
+  &.purple  { border-top-color: #9333ea; }
+  &.violet  { border-top-color: #7c3aed; }
+
+  &.skeleton {
+    height: 110px;
+    background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite;
+    border-top-color: #e5e7eb;
+  }
+}
+
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+.klbl  { font-size: 11px; color: #9ca3af; font-weight: 500; display: flex; align-items: center; gap: 5px; i { font-size: 14px; } }
+.kval  { font-size: 22px; font-weight: 700; line-height: 1.1; font-family: var(--mono); display: flex; align-items: baseline; gap: 6px; }
+.krate { font-size: 13px; font-weight: 600; color: #9333ea; }
+.ksub  { font-size: 10px; color: #9ca3af; }

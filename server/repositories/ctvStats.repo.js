@@ -1,6 +1,7 @@
 const { queryClickHouse } = require('../db/clickhouse');
 
-const DB = 'dpttd';
+const { resolveDb } = require('../db/databases');
+const DEFAULT_DB = resolveDb('TTD');
 
 // Wraps a URL string in single quotes with inner quotes escaped.
 // Used for building IN-lists; keeps escaping consistent across all queries.
@@ -9,7 +10,7 @@ const sq = u => `'${u.replace(/'/g, "\\'")}'`;
 // Conditions for failed-request queries (success = 0 + date range + optional brandSafe).
 // Use bare date comparisons — wrapping `date` in toDate() breaks partition pruning.
 // iris_ content IDs are decommissioned and excluded from all queries.
-function dateConditions(dateFrom, dateTo, brandSafe) {
+function dateConditions(dateFrom, dateTo, brandSafe, region) {
   const conds = [
     'success = 0',
     `date >= '${dateFrom}'`,
@@ -18,11 +19,12 @@ function dateConditions(dateFrom, dateTo, brandSafe) {
   ];
   if (brandSafe === '1') conds.push('isbrandsafe = 1');
   if (brandSafe === '0') conds.push('isbrandsafe = 0');
+  if (region && region !== 'all') conds.push(`region = ${sq(region)}`);
   return conds;
 }
 
 // Conditions for total-request queries (no success filter).
-function totalDateConditions(dateFrom, dateTo, brandSafe) {
+function totalDateConditions(dateFrom, dateTo, brandSafe, region) {
   const conds = [
     `date >= '${dateFrom}'`,
     `date <= '${dateTo}'`,
@@ -30,6 +32,7 @@ function totalDateConditions(dateFrom, dateTo, brandSafe) {
   ];
   if (brandSafe === '1') conds.push('isbrandsafe = 1');
   if (brandSafe === '0') conds.push('isbrandsafe = 0');
+  if (region && region !== 'all') conds.push(`region = ${sq(region)}`);
   return conds;
 }
 
@@ -79,30 +82,30 @@ function buildAggClauses(groupBy) {
  * groupBy: 'date' | 'hour' | 'url' | 'url,matchedby' | 'matchedby'
  * Pass urls OR excludeUrls (not both) to scope by platform.
  */
-async function getCtvFailedAgg({ dateFrom, dateTo, brandSafe, urls = [], excludeUrls = [], groupBy = 'date', limit }) {
-  const conds = dateConditions(dateFrom, dateTo, brandSafe);
+async function getCtvFailedAgg({ dateFrom, dateTo, brandSafe, region = 'all', urls = [], excludeUrls = [], groupBy = 'date', limit, db = DEFAULT_DB }) {
+  const conds = dateConditions(dateFrom, dateTo, brandSafe, region);
   if (urls.length)        conds.push(`url IN (${urls.map(sq).join(',')})`);
   if (excludeUrls.length) conds.push(`url NOT IN (${excludeUrls.map(sq).join(',')})`);
   const { select, group, order } = buildAggClauses(groupBy);
   const limitClause = limit ? `LIMIT ${limit}` : '';
   console.log(`[REPO:ctvStats] getCtvFailedAgg groupBy=${groupBy} dateFrom=${dateFrom} dateTo=${dateTo} urls=${urls.length} excludeUrls=${excludeUrls.length}`);
   const sql = `SELECT ${select} FROM ctv_stats WHERE ${conds.join(' AND ')} GROUP BY ${group} ORDER BY ${order} ${limitClause}`;
-  return queryClickHouse(sql, DB);
+  return queryClickHouse(sql, db);
 }
 
 /**
  * Unified total-request aggregate (success = 0 + 1, no success filter).
  * Identical base conditions to getCtvFailedAgg except no success = 0 predicate.
  */
-async function getCtvTotalAgg({ dateFrom, dateTo, brandSafe, urls = [], excludeUrls = [], groupBy = 'date', limit }) {
-  const conds = totalDateConditions(dateFrom, dateTo, brandSafe);
+async function getCtvTotalAgg({ dateFrom, dateTo, brandSafe, region = 'all', urls = [], excludeUrls = [], groupBy = 'date', limit, db = DEFAULT_DB }) {
+  const conds = totalDateConditions(dateFrom, dateTo, brandSafe, region);
   if (urls.length)        conds.push(`url IN (${urls.map(sq).join(',')})`);
   if (excludeUrls.length) conds.push(`url NOT IN (${excludeUrls.map(sq).join(',')})`);
   const { select, group, order } = buildAggClauses(groupBy);
   const limitClause = limit ? `LIMIT ${limit}` : '';
   console.log(`[REPO:ctvStats] getCtvTotalAgg groupBy=${groupBy} dateFrom=${dateFrom} dateTo=${dateTo} urls=${urls.length} excludeUrls=${excludeUrls.length}`);
   const sql = `SELECT ${select} FROM ctv_stats WHERE ${conds.join(' AND ')} GROUP BY ${group} ORDER BY ${order} ${limitClause}`;
-  return queryClickHouse(sql, DB);
+  return queryClickHouse(sql, db);
 }
 
 // ── Builds a matchedby condition for Phase-2 queries ─────────────────────────
@@ -117,12 +120,13 @@ function matchedByCondition(matchedBy) {
  * Phase-2: paginated content rows for a specific set of URLs.
  * matchedBy = 'Unmatched' matches rows with empty/null matchedby.
  */
-async function getFailedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, matchedBy, limit = 25, offset = 0 }) {
-  console.log(`[REPO:ctvStats] getFailedContentRowsByUrls urlCount=${urls.length} matchedBy=${matchedBy} limit=${limit} offset=${offset}`);
+async function getFailedContentRowsByUrls({ dateFrom, dateTo, brandSafe, region = 'all', urls, matchedBy, search = '', limit = 25, offset = 0, db = DEFAULT_DB }) {
+  console.log(`[REPO:ctvStats] getFailedContentRowsByUrls urlCount=${urls.length} matchedBy=${matchedBy} search=${search} limit=${limit} offset=${offset}`);
   const whereConds = [
-    ...dateConditions(dateFrom, dateTo, brandSafe),
+    ...dateConditions(dateFrom, dateTo, brandSafe, region),
     `url IN (${urls.map(sq).join(',')})`,
   ];
+  if (search) whereConds.push(`(positionCaseInsensitive(contentid, ${sq(search)}) > 0 OR positionCaseInsensitive(url, ${sq(search)}) > 0)`);
   const mbCond = matchedByCondition(matchedBy);
   const sql = `
     SELECT
@@ -132,6 +136,10 @@ async function getFailedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, m
       SUM(total)       AS req_total,
       any(matchedby)   AS matchedby,
       any(segment)     AS segment,
+      any(title)       AS title,
+      any(series)      AS series,
+      any(season)      AS season,
+      any(episode)     AS episode,
       any(isbrandsafe) AS isbrandsafe
     FROM ctv_stats
     WHERE ${whereConds.join(' AND ')}
@@ -140,16 +148,16 @@ async function getFailedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, m
     ORDER BY req_total DESC
     LIMIT ${limit} OFFSET ${offset}
   `;
-  return queryClickHouse(sql, DB);
+  return queryClickHouse(sql, db);
 }
 
 /**
  * Phase-2 for Others: paginated content rows for URLs NOT in the platform mapping.
  */
-async function getFailedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, excludeUrls, matchedBy, limit = 25, offset = 0 }) {
+async function getFailedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, region = 'all', excludeUrls, matchedBy, limit = 25, offset = 0, db = DEFAULT_DB }) {
   console.log(`[REPO:ctvStats] getFailedContentRowsExcludingUrls excludeCount=${excludeUrls.length} matchedBy=${matchedBy} limit=${limit} offset=${offset}`);
   const whereConds = [
-    ...dateConditions(dateFrom, dateTo, brandSafe),
+    ...dateConditions(dateFrom, dateTo, brandSafe, region),
     `url NOT IN (${excludeUrls.map(sq).join(',')})`,
   ];
   const mbCond = matchedByCondition(matchedBy);
@@ -161,6 +169,10 @@ async function getFailedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, 
       SUM(total)       AS req_total,
       any(matchedby)   AS matchedby,
       any(segment)     AS segment,
+      any(title)       AS title,
+      any(series)      AS series,
+      any(season)      AS season,
+      any(episode)     AS episode,
       any(isbrandsafe) AS isbrandsafe
     FROM ctv_stats
     WHERE ${whereConds.join(' AND ')}
@@ -169,15 +181,15 @@ async function getFailedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, 
     ORDER BY req_total DESC
     LIMIT ${limit} OFFSET ${offset}
   `;
-  return queryClickHouse(sql, DB);
+  return queryClickHouse(sql, db);
 }
 
 /**
  * Phase-2 enrichable: paginated success>0 rows for a specific set of URLs.
  * Used when an enrichable (G_/R_/S_) sub-accordion is expanded — shows served content IDs.
  */
-async function getServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, matchedBy, limit = 25, offset = 0 }) {
-  console.log(`[REPO:ctvStats] getServedContentRowsByUrls urlCount=${urls.length} matchedBy=${matchedBy} limit=${limit} offset=${offset}`);
+async function getServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, region = 'all', urls, matchedBy, search = '', limit = 25, offset = 0, db = DEFAULT_DB }) {
+  console.log(`[REPO:ctvStats] getServedContentRowsByUrls urlCount=${urls.length} matchedBy=${matchedBy} search=${search} limit=${limit} offset=${offset}`);
   const whereConds = [
     'success > 0',
     `date >= '${dateFrom}'`,
@@ -187,7 +199,11 @@ async function getServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, m
   ];
   if (brandSafe === '1') whereConds.push('isbrandsafe = 1');
   if (brandSafe === '0') whereConds.push('isbrandsafe = 0');
+  if (search) whereConds.push(`(positionCaseInsensitive(contentid, ${sq(search)}) > 0 OR positionCaseInsensitive(url, ${sq(search)}) > 0)`);
   const mbCond = matchedBy ? `matchedby = ${sq(matchedBy)}` : null;
+  // segment/season/episode omitted — they are large columns (avg 662 bytes each)
+  // that cause OOM on ClickHouse for multi-day / high-volume platforms.
+  // For enrichable rows we only display title and series; segment is not needed.
   const sql = `
     SELECT
       contentid,
@@ -195,7 +211,8 @@ async function getServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, m
       channel,
       SUM(total)       AS req_total,
       any(matchedby)   AS matchedby,
-      any(segment)     AS segment,
+      any(title)       AS title,
+      any(series)      AS series,
       any(isbrandsafe) AS isbrandsafe
     FROM ctv_stats
     WHERE ${whereConds.join(' AND ')}
@@ -204,13 +221,13 @@ async function getServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, m
     ORDER BY req_total DESC
     LIMIT ${limit} OFFSET ${offset}
   `;
-  return queryClickHouse(sql, DB);
+  return queryClickHouse(sql, db);
 }
 
 /**
  * Phase-2 enrichable for Others: paginated success>0 rows for unmapped URLs.
  */
-async function getServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, excludeUrls, matchedBy, limit = 25, offset = 0 }) {
+async function getServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, region = 'all', excludeUrls, matchedBy, limit = 25, offset = 0, db = DEFAULT_DB }) {
   console.log(`[REPO:ctvStats] getServedContentRowsExcludingUrls excludeCount=${excludeUrls.length} matchedBy=${matchedBy} limit=${limit} offset=${offset}`);
   const whereConds = [
     'success > 0',
@@ -222,6 +239,7 @@ async function getServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, 
   if (brandSafe === '1') whereConds.push('isbrandsafe = 1');
   if (brandSafe === '0') whereConds.push('isbrandsafe = 0');
   const mbCond = matchedBy ? `matchedby = ${sq(matchedBy)}` : null;
+  // segment/season/episode omitted — large columns that can OOM on high-volume queries
   const sql = `
     SELECT
       contentid,
@@ -229,7 +247,8 @@ async function getServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, 
       channel,
       SUM(total)       AS req_total,
       any(matchedby)   AS matchedby,
-      any(segment)     AS segment,
+      any(title)       AS title,
+      any(series)      AS series,
       any(isbrandsafe) AS isbrandsafe
     FROM ctv_stats
     WHERE ${whereConds.join(' AND ')}
@@ -238,17 +257,17 @@ async function getServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, 
     ORDER BY req_total DESC
     LIMIT ${limit} OFFSET ${offset}
   `;
-  return queryClickHouse(sql, DB);
+  return queryClickHouse(sql, db);
 }
 
 /**
  * All failed content rows for a set of URLs — no LIMIT, used for CSV export.
  * Pass onlyUnmatched=true to restrict to rows where matchedby is empty (failing zone download).
  */
-async function getAllFailedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, onlyUnmatched = false }) {
+async function getAllFailedContentRowsByUrls({ dateFrom, dateTo, brandSafe, region = 'all', urls, onlyUnmatched = false, db = DEFAULT_DB }) {
   console.log(`[REPO:ctvStats] getAllFailedContentRowsByUrls dateFrom=${dateFrom} dateTo=${dateTo} urlCount=${urls.length} onlyUnmatched=${onlyUnmatched}`);
   const conds = [
-    ...dateConditions(dateFrom, dateTo, brandSafe),
+    ...dateConditions(dateFrom, dateTo, brandSafe, region),
     `url IN (${urls.map(sq).join(',')})`,
   ];
   const sql = `
@@ -265,16 +284,16 @@ async function getAllFailedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls
     ${onlyUnmatched ? "HAVING (matchedby = '' OR matchedby IS NULL)" : ''}
     ORDER BY req_total DESC
   `;
-  return queryClickHouse(sql, DB);
+  return queryClickHouse(sql, db);
 }
 
 /**
  * All failed content rows for URLs NOT in the platform mapping — no LIMIT, used for Others CSV export.
  */
-async function getAllFailedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, excludeUrls, onlyUnmatched = false }) {
+async function getAllFailedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, region = 'all', excludeUrls, onlyUnmatched = false, db = DEFAULT_DB }) {
   console.log(`[REPO:ctvStats] getAllFailedContentRowsExcludingUrls excludeCount=${excludeUrls.length} onlyUnmatched=${onlyUnmatched}`);
   const conds = [
-    ...dateConditions(dateFrom, dateTo, brandSafe),
+    ...dateConditions(dateFrom, dateTo, brandSafe, region),
     `url NOT IN (${excludeUrls.map(sq).join(',')})`,
   ];
   const sql = `
@@ -291,14 +310,14 @@ async function getAllFailedContentRowsExcludingUrls({ dateFrom, dateTo, brandSaf
     ${onlyUnmatched ? "HAVING (matchedby = '' OR matchedby IS NULL)" : ''}
     ORDER BY req_total DESC
   `;
-  return queryClickHouse(sql, DB);
+  return queryClickHouse(sql, db);
 }
 
 /**
  * All served (success>0) content rows for URLs NOT in the platform mapping — no LIMIT, for Others CSV export.
  * Pass matchedBy to scope to a single segment category.
  */
-async function getAllServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, excludeUrls, matchedBy }) {
+async function getAllServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSafe, region = 'all', excludeUrls, matchedBy, db = DEFAULT_DB }) {
   console.log(`[REPO:ctvStats] getAllServedContentRowsExcludingUrls excludeCount=${excludeUrls.length} matchedBy=${matchedBy}`);
   const conds = [
     'success > 0',
@@ -324,14 +343,14 @@ async function getAllServedContentRowsExcludingUrls({ dateFrom, dateTo, brandSaf
     ${mbCond ? `HAVING ${mbCond}` : ''}
     ORDER BY req_total DESC
   `;
-  return queryClickHouse(sql, DB);
+  return queryClickHouse(sql, db);
 }
 
 /**
  * All served (success>0) content rows for a set of URLs — no LIMIT, used for enrichable CSV export.
  * Pass matchedBy to scope to a single segment category (e.g. 'G_Roku').
  */
-async function getAllServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls, matchedBy }) {
+async function getAllServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, region = 'all', urls, matchedBy, db = DEFAULT_DB }) {
   console.log(`[REPO:ctvStats] getAllServedContentRowsByUrls dateFrom=${dateFrom} dateTo=${dateTo} urlCount=${urls.length} matchedBy=${matchedBy}`);
   const conds = [
     'success > 0',
@@ -357,14 +376,14 @@ async function getAllServedContentRowsByUrls({ dateFrom, dateTo, brandSafe, urls
     ${mbCond ? `HAVING ${mbCond}` : ''}
     ORDER BY req_total DESC
   `;
-  return queryClickHouse(sql, DB);
+  return queryClickHouse(sql, db);
 }
 
 /**
  * Served (success>0) category totals for mapped URLs, grouped by (url, matchedby).
  * Used to surface enrichable categories in the platform queue.
  */
-async function getHealthyCategoryTotals({ dateFrom, dateTo, brandSafe, urls = [] }) {
+async function getHealthyCategoryTotals({ dateFrom, dateTo, brandSafe, region = 'all', urls = [], db = DEFAULT_DB }) {
   console.log(`[REPO:ctvStats] getHealthyCategoryTotals dateFrom=${dateFrom} dateTo=${dateTo} urlCount=${urls.length}`);
   if (!urls.length) return [];
   const conds = [
@@ -388,10 +407,250 @@ async function getHealthyCategoryTotals({ dateFrom, dateTo, brandSafe, urls = []
     GROUP BY url, matchedby
     ORDER BY req_served DESC
   `;
-  return queryClickHouse(sql, DB);
+  return queryClickHouse(sql, db);
+}
+
+/**
+ * Total hits per content ID for a given matchedBy category — no success filter,
+ * counts all requests regardless of outcome. Used for the Hits tab in category accordions.
+ */
+async function getCtvContentHits({ dateFrom, dateTo, brandSafe, region = 'all', urls = [], matchedBy, limit = 50, offset = 0, db = DEFAULT_DB }) {
+  const conds = [
+    `date >= '${dateFrom}'`,
+    `date <= '${dateTo}'`,
+    "NOT startsWith(contentid, 'iris')",
+  ];
+  if (urls.length) conds.push(`url IN (${urls.map(sq).join(',')})`);
+  if (brandSafe === '1') conds.push('isbrandsafe = 1');
+  if (brandSafe === '0') conds.push('isbrandsafe = 0');
+
+  // matchedby filter goes in WHERE so SUM(total) only covers that category's rows
+  if (matchedBy === 'Unmatched') conds.push(`(matchedby = '' OR matchedby IS NULL)`);
+  else if (matchedBy) conds.push(`matchedby = ${sq(matchedBy)}`);
+
+  const sql = `
+    SELECT
+      contentid,
+      SUM(total)    AS hits,
+      any(title)    AS title,
+      any(series)   AS series
+    FROM ctv_stats
+    WHERE ${conds.join(' AND ')}
+    GROUP BY contentid
+    ORDER BY hits DESC
+    LIMIT ${limit + 1} OFFSET ${offset}
+  `;
+  console.log(`[REPO:ctvStats] getCtvContentHits dateFrom=${dateFrom} dateTo=${dateTo} matchedBy=${matchedBy} urlCount=${urls.length} limit=${limit} offset=${offset}`);
+  const rows = await queryClickHouse(sql, db);
+  return { rows: rows.slice(0, limit), hasMore: rows.length > limit };
+}
+
+/**
+ * Failed (success=0) rows with empty matchedby, grouped by URL.
+ * Used for the unmatched URL breakdown on the platform detail page.
+ */
+async function getUnmatchedUrlBreakdown({ dateFrom, dateTo, brandSafe, region = 'all', urls, db = DEFAULT_DB }) {
+  console.log(`[REPO:ctvStats] getUnmatchedUrlBreakdown urlCount=${urls.length} dateFrom=${dateFrom} dateTo=${dateTo}`);
+  if (!urls.length) return [];
+  const conds = [
+    ...dateConditions(dateFrom, dateTo, brandSafe, region),
+    `url IN (${urls.map(sq).join(',')})`,
+    "(matchedby = '' OR matchedby IS NULL)",
+  ];
+  const sql = `
+    SELECT url, SUM(total) AS req_total, uniq(contentid) AS content_count
+    FROM ctv_stats
+    WHERE ${conds.join(' AND ')}
+    GROUP BY url
+    ORDER BY req_total DESC
+  `;
+  return queryClickHouse(sql, db);
+}
+
+/**
+ * Top N and bottom N segments by times served.
+ * segment column holds comma-separated sp_* tags — exploded with arrayJoin.
+ */
+async function getSegmentRankings({ dateFrom, dateTo, brandSafe, region, urls = [], n = 10, db = DEFAULT_DB }) {
+  const base = [
+    `date >= '${dateFrom}'`,
+    `date <= '${dateTo}'`,
+    "NOT startsWith(contentid, 'iris')",
+    "segment != ''",
+  ];
+  if (brandSafe === '1') base.push('isbrandsafe = 1');
+  if (brandSafe === '0') base.push('isbrandsafe = 0');
+  if (region && region !== 'all') base.push(`region = ${sq(region)}`);
+  if (urls.length) base.push(`url IN (${urls.map(sq).join(',')})`);
+
+  const innerWhere = base.join(' AND ');
+
+  // Inner query selects raw rows with arrayJoin explosion (no aggregation).
+  // Outer query aggregates — this avoids the NOT_AN_AGGREGATE error in ClickHouse.
+  const topSql = `
+    SELECT seg_tag,
+           SUM(if(success > 0, total, 0)) AS times_served,
+           uniq(contentid)                AS distinct_content,
+           SUM(total)                     AS total_requests
+    FROM (
+      SELECT trimBoth(arrayJoin(splitByChar(',', segment))) AS seg_tag,
+             contentid, success, total
+      FROM ctv_stats
+      WHERE ${innerWhere}
+    )
+    WHERE seg_tag != ''
+    GROUP BY seg_tag
+    HAVING times_served > 0
+    ORDER BY times_served DESC
+    LIMIT ${n}
+  `;
+
+  const botSql = `
+    SELECT seg_tag,
+           SUM(if(success > 0, total, 0)) AS times_served,
+           uniq(contentid)                AS distinct_content,
+           SUM(total)                     AS total_requests
+    FROM (
+      SELECT trimBoth(arrayJoin(splitByChar(',', segment))) AS seg_tag,
+             contentid, success, total
+      FROM ctv_stats
+      WHERE ${innerWhere}
+    )
+    WHERE seg_tag != ''
+    GROUP BY seg_tag
+    HAVING distinct_content >= 10
+    ORDER BY times_served ASC
+    LIMIT ${n}
+  `;
+
+  console.log(`[REPO:ctvStats] getSegmentRankings dateFrom=${dateFrom} dateTo=${dateTo} n=${n}`);
+  const [top, bottom] = await Promise.all([
+    queryClickHouse(topSql, db),
+    queryClickHouse(botSql, db),
+  ]);
+  return { top, bottom };
+}
+
+/**
+ * Detail for a single segment — overview + per-URL breakdown for platform join.
+ */
+async function getSegmentDetail({ dateFrom, dateTo, brandSafe, region, urls = [], segment, db = DEFAULT_DB }) {
+  const base = [
+    `date >= '${dateFrom}'`,
+    `date <= '${dateTo}'`,
+    "NOT startsWith(contentid, 'iris')",
+    `has(splitByChar(',', segment), ${sq(segment)})`,
+  ];
+  if (brandSafe === '1') base.push('isbrandsafe = 1');
+  if (brandSafe === '0') base.push('isbrandsafe = 0');
+  if (region && region !== 'all') base.push(`region = ${sq(region)}`);
+  if (urls.length) base.push(`url IN (${urls.map(sq).join(',')})`);
+
+  const where = base.join(' AND ');
+
+  const overviewSql = `
+    SELECT
+      SUM(total)                                        AS total_requests,
+      SUM(if(success > 0, total, 0))                   AS times_served,
+      uniq(contentid)                                   AS distinct_content
+    FROM ctv_stats
+    WHERE ${where}
+  `;
+
+  const platformSql = `
+    SELECT
+      url,
+      SUM(if(success > 0, total, 0)) AS times_served,
+      uniq(contentid)                AS distinct_content
+    FROM ctv_stats
+    WHERE ${where}
+    GROUP BY url
+    ORDER BY times_served DESC
+  `;
+
+  console.log(`[REPO:ctvStats] getSegmentDetail segment=${segment} dateFrom=${dateFrom}`);
+  const [overviewRows, platformRows] = await Promise.all([
+    queryClickHouse(overviewSql, db),
+    queryClickHouse(platformSql, db),
+  ]);
+  return { overview: overviewRows[0] ?? {}, platforms: platformRows };
+}
+
+/**
+ * Distinct segment count per URL for all mapped URLs.
+ * One query covering all platforms — result keyed by URL, resolved to platform in service.
+ */
+async function getPlatformSegmentCounts({ dateFrom, dateTo, brandSafe, region, urls = [], excludeUrls = [], db = DEFAULT_DB }) {
+  if (!urls.length && !excludeUrls.length) return [];
+  const conds = [
+    'success > 0',
+    `date >= '${dateFrom}'`,
+    `date <= '${dateTo}'`,
+    "NOT startsWith(contentid, 'iris')",
+    "segment != ''",
+  ];
+  if (urls.length)        conds.push(`url IN (${urls.map(sq).join(',')})`);
+  if (excludeUrls.length) conds.push(`url NOT IN (${excludeUrls.map(sq).join(',')})`);
+  if (brandSafe === '1') conds.push('isbrandsafe = 1');
+  if (brandSafe === '0') conds.push('isbrandsafe = 0');
+  if (region && region !== 'all') conds.push(`region = ${sq(region)}`);
+  // For Others: collapse all unmapped URLs into one group keyed 'Others'
+  const urlCol = excludeUrls.length ? `'Others'` : 'url';
+  const sql = `
+    SELECT ${urlCol} AS url, uniq(seg) AS seg_count
+    FROM (
+      SELECT url, trimBoth(arrayJoin(splitByChar(',', segment))) AS seg
+      FROM ctv_stats
+      WHERE ${conds.join(' AND ')}
+    )
+    WHERE seg != ''
+    GROUP BY url
+  `;
+  console.log(`[REPO:ctvStats] getPlatformSegmentCounts urls=${urls.length} excludeUrls=${excludeUrls.length}`);
+  return queryClickHouse(sql, db);
+}
+
+/**
+ * For a specific platform: each distinct segment + % of requests served that contained it.
+ */
+async function getPlatformSegmentDetail({ dateFrom, dateTo, brandSafe, region, urls = [], excludeUrls = [], db = DEFAULT_DB }) {
+  if (!urls.length && !excludeUrls.length) return [];
+  const conds = [
+    `date >= '${dateFrom}'`,
+    `date <= '${dateTo}'`,
+    "NOT startsWith(contentid, 'iris')",
+    "segment != ''",
+  ];
+  if (urls.length)        conds.push(`url IN (${urls.map(sq).join(',')})`);
+  if (excludeUrls.length) conds.push(`url NOT IN (${excludeUrls.map(sq).join(',')})`);
+  if (brandSafe === '1') conds.push('isbrandsafe = 1');
+  if (brandSafe === '0') conds.push('isbrandsafe = 0');
+  if (region && region !== 'all') conds.push(`region = ${sq(region)}`);
+  const sql = `
+    SELECT
+      seg                                         AS segment,
+      SUM(if(success > 0, total, 0))             AS served,
+      SUM(total)                                  AS total_req
+    FROM (
+      SELECT trimBoth(arrayJoin(splitByChar(',', segment))) AS seg, success, total
+      FROM ctv_stats
+      WHERE ${conds.join(' AND ')}
+    )
+    WHERE seg != ''
+    GROUP BY seg
+    HAVING served > 0
+    ORDER BY served DESC
+  `;
+  console.log(`[REPO:ctvStats] getPlatformSegmentDetail urlCount=${urls.length}`);
+  return queryClickHouse(sql, db);
 }
 
 module.exports = {
+  getCtvContentHits,
+  getSegmentRankings,
+  getSegmentDetail,
+  getPlatformSegmentCounts,
+  getPlatformSegmentDetail,
   // Unified aggregation (preferred for all new callers)
   getCtvFailedAgg,
   getCtvTotalAgg,
@@ -406,4 +665,6 @@ module.exports = {
   getAllServedContentRowsExcludingUrls,
   // Enrichable category totals (success>0)
   getHealthyCategoryTotals,
+  // Platform detail page helpers
+  getUnmatchedUrlBreakdown,
 };

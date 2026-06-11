@@ -1,13 +1,15 @@
-const DEFAULT_DAYS = 7;
+const DEFAULT_DAYS = 3;
 
 const today   = () => new Date().toISOString().slice(0, 10);
 const daysAgo = n  => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
 
 function parseByPlatformQuery(query) {
-  const { dateFrom, dateTo, platforms, channel, brandSafe } = query;
+  const { dateFrom, dateTo, platforms, channel, brandSafe, region, partner } = query;
   return {
     dateFrom:     dateFrom  || daysAgo(DEFAULT_DAYS),
     dateTo:       dateTo    || today(),
+    region:       region  || 'all',
+    partner:      partner  || 'TTD',
     platformList: Array.isArray(platforms)
       ? platforms.map(p => p.toLowerCase())
       : (platforms ? [platforms.toLowerCase()] : []),
@@ -19,7 +21,7 @@ function parseByPlatformQuery(query) {
 // Detail endpoint defaults to a single-day window (yesterday).
 // When only dateFrom is provided, dateTo defaults to the same date.
 function parseDetailQuery(query) {
-  const { platform, dateFrom, dateTo, brandSafe, matchedBy, enrichable } = query;
+  const { platform, dateFrom, dateTo, brandSafe, matchedBy, enrichable, search, region, partner } = query;
   const from = dateFrom || daysAgo(1);
   return {
     platform,
@@ -28,16 +30,33 @@ function parseDetailQuery(query) {
     brandSafe: brandSafe || 'all',
     matchedBy: matchedBy || '',
     enrichable: enrichable === 'true',
+    region:    (region  || 'all'),
+    partner:   (partner  || 'TTD'),
+    search:    (search || '').trim(),
+  };
+}
+
+function parseSummaryQuery(query) {
+  const { platform, dateFrom, dateTo, brandSafe, region, partner } = query;
+  const from = dateFrom || daysAgo(1);
+  return {
+    platform:  platform  || '',
+    region:    region    || 'all',
+    dateFrom:  from,
+    dateTo:    dateTo    || from,
+    brandSafe: brandSafe || 'all',
   };
 }
 
 function parseTrendQuery(query) {
-  const { dateFrom, dateTo, platform, brandSafe } = query;
+  const { dateFrom, dateTo, platform, brandSafe, region, partner } = query;
   return {
     dateFrom:  dateFrom  || daysAgo(DEFAULT_DAYS),
     dateTo:    dateTo    || today(),
     platform:  platform  || 'all',
     brandSafe: brandSafe || 'all',
+    region:    region    || 'all',
+    partner:   partner   || 'TTD',
   };
 }
 
@@ -59,13 +78,18 @@ function toFailedRow(row) {
     channel:        row.channel   || '',
     requestsAtRisk: Number(row.req_total),
     matchedBy:      row.matchedby || '',
+    segment:        row.segment   || '',
+    title:          row.title     || '',
+    series:         row.series    || '',
+    season:         row.season    || '',
+    episode:        row.episode   || '',
     isbrandsafe:    row.isbrandsafe,
     rootCauses:     causes,
   };
 }
 
 function parseDownloadQuery(query) {
-  const { platform, dateFrom, dateTo, brandSafe, type, matchedBy } = query;
+  const { platform, dateFrom, dateTo, brandSafe, type, matchedBy, region } = query;
   const from = dateFrom || daysAgo(DEFAULT_DAYS);
   return {
     platform:  platform  || '',
@@ -74,7 +98,8 @@ function parseDownloadQuery(query) {
     brandSafe: brandSafe || 'all',
     type:      type      || 'failed',
     matchedBy: matchedBy || '',
+    region:    region    || 'all',
   };
 }
 
-module.exports = { parseByPlatformQuery, parseDetailQuery, parseTrendQuery, parsePagination, parseDownloadQuery, toFailedRow };
+module.exports = { parseByPlatformQuery, parseDetailQuery, parseSummaryQuery, parseTrendQuery, parsePagination, parseDownloadQuery, toFailedRow };

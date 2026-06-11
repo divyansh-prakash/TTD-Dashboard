@@ -1,0 +1,152 @@
+<div class="panel-card">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">Content ID Gap Analysis</div>
+      <div class="panel-sub">Distinct content IDs per platform — matched vs unmatched · sorted by gap size · use to prioritise scraping</div>
+    </div>
+    @if (loading()) { <div class="loading-chip">Loading…</div> }
+  </div>
+
+  @if (platformGroups().length || unknownRows().length) {
+
+    <!-- Sticky column headers -->
+    <div class="col-header-row">
+      <div class="ch ch-platform">Platform</div>
+      <div class="ch ch-bar"></div>
+      <div class="ch ch-num">Unmatched</div>
+      <div class="ch ch-num">Matched</div>
+      <div class="ch ch-num">Total IDs</div>
+      <div class="ch ch-rate">Match %</div>
+    </div>
+
+    <!-- Scrollable accordion area -->
+    <div class="acc-scroll">
+
+      <!-- One accordion per known platform -->
+      @for (g of platformGroups(); track g.platform) {
+        <div class="platform-header" (click)="togglePlatform(g.platform)">
+          <div class="ph-name">
+            <span class="chevron" [class.open]="openPlatforms().has(g.platform)">›</span>
+            <span class="ph-label">{{ g.platform }}</span>
+            @if (g.rows.length > 1) {
+              <span class="appid-badge">{{ g.rows.length }} appids</span>
+            }
+          </div>
+          <div class="ph-bar-cell">
+            <div class="bar-track">
+              <div class="bar-matched"   [style.width.%]="barPct(g.matched,   g.total)"></div>
+              <div class="bar-unmatched" [style.width.%]="barPct(g.unmatched, g.total)"></div>
+            </div>
+          </div>
+          <span class="ph-num unmatched-val">{{ fmt(g.unmatched) }}</span>
+          <span class="ph-num matched-val">{{ fmt(g.matched) }}</span>
+          <span class="ph-num total-val">{{ fmt(g.total) }}</span>
+          <span class="ph-rate">
+            <span class="rate-badge"
+                  [class.rate-low]="g.matchRate < 30"
+                  [class.rate-mid]="g.matchRate >= 30 && g.matchRate < 70"
+                  [class.rate-high]="g.matchRate >= 70">{{ g.matchRate }}%</span>
+          </span>
+        </div>
+
+        @if (openPlatforms().has(g.platform)) {
+          <div class="platform-body">
+            <div class="body-inner">
+              <div class="inner-col-header">
+                <div class="ich ich-platform">App ID</div>
+                <div class="ich ich-num">Unmatched</div>
+                <div class="ich ich-num">Matched</div>
+                <div class="ich ich-num">Total IDs</div>
+                <div class="ich ich-rate">Match %</div>
+              </div>
+              @for (r of g.rows; track r.appid) {
+                <div class="appid-row">
+                  <div class="ar-name">
+                    <span class="appid-label" [title]="r.appid">{{ r.appid }}</span>
+                    <div class="inner-bar">
+                      <div class="bar-matched"   [style.width.%]="barPct(r.matched,   r.total)"></div>
+                      <div class="bar-unmatched" [style.width.%]="barPct(r.unmatched, r.total)"></div>
+                    </div>
+                  </div>
+                  <span class="ar-num unmatched-val">{{ fmt(r.unmatched) }}</span>
+                  <span class="ar-num matched-val">{{ fmt(r.matched) }}</span>
+                  <span class="ar-num total-val">{{ fmt(r.total) }}</span>
+                  <span class="ar-rate">
+                    <span class="rate-badge"
+                          [class.rate-low]="r.matchRate < 30"
+                          [class.rate-mid]="r.matchRate >= 30 && r.matchRate < 70"
+                          [class.rate-high]="r.matchRate >= 70">{{ r.matchRate }}%</span>
+                  </span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      }
+
+      <!-- Unknown accordion at the bottom -->
+      @if (unknownRows().length) {
+        <div class="platform-header unknown-header" (click)="toggleUnknown()">
+          <div class="ph-name">
+            <span class="chevron" [class.open]="unknownOpen()">›</span>
+            <span class="ph-label unknown-label">Unknown</span>
+            <span class="appid-badge">{{ unknownSummary().count }} appids</span>
+          </div>
+          <div class="ph-bar-cell">
+            <div class="bar-track">
+              <div class="bar-matched"   [style.width.%]="barPct(unknownSummary().matched,   unknownSummary().total)"></div>
+              <div class="bar-unmatched" [style.width.%]="barPct(unknownSummary().unmatched, unknownSummary().total)"></div>
+            </div>
+          </div>
+          <span class="ph-num unmatched-val">{{ fmt(unknownSummary().unmatched) }}</span>
+          <span class="ph-num matched-val">{{ fmt(unknownSummary().matched) }}</span>
+          <span class="ph-num total-val">{{ fmt(unknownSummary().total) }}</span>
+          <span class="ph-rate">
+            <span class="rate-badge"
+                  [class.rate-low]="unknownSummary().matchRate < 30"
+                  [class.rate-mid]="unknownSummary().matchRate >= 30 && unknownSummary().matchRate < 70"
+                  [class.rate-high]="unknownSummary().matchRate >= 70">{{ unknownSummary().matchRate }}%</span>
+          </span>
+        </div>
+
+        @if (unknownOpen()) {
+          <div class="platform-body">
+            <div class="body-inner">
+              <div class="inner-col-header">
+                <div class="ich ich-platform">App ID</div>
+                <div class="ich ich-num">Unmatched</div>
+                <div class="ich ich-num">Matched</div>
+                <div class="ich ich-num">Total IDs</div>
+                <div class="ich ich-rate">Match %</div>
+              </div>
+              @for (r of unknownRows(); track r.appid) {
+                <div class="appid-row">
+                  <div class="ar-name">
+                    <span class="appid-label unknown-appid" [title]="r.appid">{{ r.appid }}</span>
+                    <div class="inner-bar">
+                      <div class="bar-matched"   [style.width.%]="barPct(r.matched,   r.total)"></div>
+                      <div class="bar-unmatched" [style.width.%]="barPct(r.unmatched, r.total)"></div>
+                    </div>
+                  </div>
+                  <span class="ar-num unmatched-val">{{ fmt(r.unmatched) }}</span>
+                  <span class="ar-num matched-val">{{ fmt(r.matched) }}</span>
+                  <span class="ar-num total-val">{{ fmt(r.total) }}</span>
+                  <span class="ar-rate">
+                    <span class="rate-badge"
+                          [class.rate-low]="r.matchRate < 30"
+                          [class.rate-mid]="r.matchRate >= 30 && r.matchRate < 70"
+                          [class.rate-high]="r.matchRate >= 70">{{ r.matchRate }}%</span>
+                  </span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      }
+
+    </div>
+
+  } @else if (!loading()) {
+    <div class="empty-state">No data for the selected date range.</div>
+  }
+</div>

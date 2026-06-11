@@ -2,6 +2,7 @@ const service = require('../services/failure-queue');
 const {
   parseByPlatformQuery,
   parseDetailQuery,
+  parseSummaryQuery,
   parseTrendQuery,
   parsePagination,
   parseDownloadQuery,
@@ -67,4 +68,163 @@ async function download(req, res) {
   }
 }
 
-module.exports = { getByPlatform, getByPlatformDetail, getFilterOptions, getTrend, download };
+async function getPlatformSummary(req, res) {
+  try {
+    const params = parseSummaryQuery(req.query);
+    if (!params.platform) return res.status(400).json({ error: 'platform is required' });
+    const result = await service.getPlatformSummary(params);
+    if (!result) return res.status(404).json({ error: 'Platform not found' });
+    res.json(result);
+  } catch (err) {
+    console.error('[CTRL:getPlatformSummary]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function getPeriodComparison(req, res) {
+  try {
+    const { dateFrom, dateTo, brandSafe } = req.query;
+    const platforms = req.query.platforms;
+    const platformList = Array.isArray(platforms) ? platforms.map(p => p.toLowerCase())
+      : platforms ? [platforms.toLowerCase()] : [];
+    const result = await service.getPeriodComparison({
+      dateFrom:  dateFrom  || '',
+      dateTo:    dateTo    || '',
+      brandSafe: brandSafe || 'all',
+      platformList,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[CTRL:getPeriodComparison]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function getContentHits(req, res) {
+  try {
+    const { platform, dateFrom, dateTo, brandSafe, matchedBy, limit, offset } = req.query;
+    if (!platform) return res.status(400).json({ error: 'platform is required' });
+    const result = await service.getContentHits({
+      platform,
+      dateFrom:  dateFrom  || '',
+      dateTo:    dateTo    || '',
+      brandSafe: brandSafe || 'all',
+      matchedBy: matchedBy || '',
+      limit:  Math.max(1, parseInt(limit,  10) || 50),
+      offset: Math.max(0, parseInt(offset, 10) || 0),
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[CTRL:getContentHits]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function getSegmentRankings(req, res) {
+  try {
+    const { dateFrom, dateTo, brandSafe, region, n } = req.query;
+    const result = await service.getSegmentRankingsSvc({
+      dateFrom:  dateFrom  || '',
+      dateTo:    dateTo    || '',
+      brandSafe: brandSafe || 'all',
+      region:    region    || 'all',
+      n: Math.max(1, parseInt(n, 10) || 10),
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[CTRL:getSegmentRankings]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function getSegmentDetail(req, res) {
+  try {
+    const { segment, dateFrom, dateTo, brandSafe, region } = req.query;
+    if (!segment) return res.status(400).json({ error: 'segment is required' });
+    const result = await service.getSegmentDetailSvc({
+      segment,
+      dateFrom:  dateFrom  || '',
+      dateTo:    dateTo    || '',
+      brandSafe: brandSafe || 'all',
+      region:    region    || 'all',
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[CTRL:getSegmentDetail]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function getPlatformSegmentCounts(req, res) {
+  try {
+    const { dateFrom, dateTo, brandSafe, region } = req.query;
+    const result = await service.getPlatformSegmentCountsSvc({ dateFrom: dateFrom || '', dateTo: dateTo || '', brandSafe: brandSafe || 'all', region: region || 'all' });
+    res.json(result);
+  } catch (err) { console.error('[CTRL:getPlatformSegmentCounts]', err.message); res.status(500).json({ error: err.message }); }
+}
+
+async function getPlatformSegmentDetail(req, res) {
+  try {
+    const { platform, dateFrom, dateTo, brandSafe, region } = req.query;
+    if (!platform) return res.status(400).json({ error: 'platform required' });
+    const result = await service.getPlatformSegmentDetailSvc({ platform, dateFrom: dateFrom || '', dateTo: dateTo || '', brandSafe: brandSafe || 'all', region: region || 'all' });
+    res.json(result);
+  } catch (err) { console.error('[CTRL:getPlatformSegmentDetail]', err.message); res.status(500).json({ error: err.message }); }
+}
+
+
+async function getPubmaticSummary(req, res) {
+  try {
+    const { dateFrom, dateTo, brandSafe, region } = req.query;
+    const result = await service.getPubmaticSummarySvc({
+      dateFrom: dateFrom || '', dateTo: dateTo || '',
+      brandSafe: brandSafe || 'all', region: region || 'all',
+    });
+    res.json(result);
+  } catch (err) { console.error('[CTRL:getPubmaticSummary]', err.message); res.status(500).json({ error: err.message }); }
+}
+
+async function getPubmaticAppidBreakdown(req, res) {
+  try {
+    const { dateFrom, dateTo, region } = req.query;
+    const result = await service.getPubmaticAppidBreakdownSvc({
+      dateFrom: dateFrom || '', dateTo: dateTo || '', region: region || 'all',
+    });
+    res.json(result);
+  } catch (err) { console.error('[CTRL:getPubmaticAppidBreakdown]', err.message); res.status(500).json({ error: err.message }); }
+}
+
+// getPubmaticContentIdBreakdown disabled — cross-server approach abandoned.
+// async function getPubmaticContentIdBreakdown(req, res) { ... }
+
+async function getPubmaticContentGap(req, res) {
+  try {
+    const { dateFrom, dateTo, region } = req.query;
+    const result = await service.getPubmaticContentGapSvc({
+      dateFrom: dateFrom || '', dateTo: dateTo || '', region: region || 'all',
+    });
+    res.json(result);
+  } catch (err) { console.error('[CTRL:getPubmaticContentGap]', err.message); res.status(500).json({ error: err.message }); }
+}
+
+async function getPubmaticContentCoverage(req, res) {
+  try {
+    const { dateFrom, dateTo, region } = req.query;
+    const result = await service.getPubmaticContentCoverageSvc({
+      dateFrom: dateFrom || '', dateTo: dateTo || '', region: region || 'all',
+    });
+    res.json(result);
+  } catch (err) { console.error('[CTRL:getPubmaticContentCoverage]', err.message); res.status(500).json({ error: err.message }); }
+}
+
+async function getPubmaticMatchbyBreakdown(req, res) {
+  try {
+    const { dateFrom, dateTo, region } = req.query;
+    const result = await service.getPubmaticMatchbyBreakdownSvc({
+      dateFrom: dateFrom || '', dateTo: dateTo || '', region: region || 'all',
+    });
+    res.json(result);
+  } catch (err) { console.error('[CTRL:getPubmaticMatchbyBreakdown]', err.message); res.status(500).json({ error: err.message }); }
+}
+
+module.exports = { getPubmaticAppidBreakdown, getPubmaticContentGap, getPubmaticContentCoverage, getPubmaticMatchbyBreakdown, getPubmaticSummary, getByPlatform, getByPlatformDetail, getPlatformSummary, getFilterOptions, getTrend, download, getContentHits, getPeriodComparison, getSegmentRankings, getSegmentDetail, getPlatformSegmentCounts, getPlatformSegmentDetail };

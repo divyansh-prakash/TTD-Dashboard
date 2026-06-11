@@ -4,14 +4,15 @@ import {
   SimpleChanges, ViewChild, signal, computed,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { ApiService } from '../../../services/api.service';
-import { PlatformGroup, MatchedByGroup, FailedRow, FailureQueueFilters } from '../../../models/failure-queue.model';
+import { PlatformGroup, MatchedByGroup, FailedRow, FailureQueueFilters, PeriodComparison, ContentHit } from '../../../models/failure-queue.model';
 
 @Component({
   selector: 'app-platform-queue',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './platform-queue.component.html',
   styleUrl: './platform-queue.component.scss',
 })
@@ -26,6 +27,20 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
   downloadingPlatforms = signal<Set<string>>(new Set());
   downloadingZones     = signal<Set<string>>(new Set());
   downloadingGroups    = signal<Set<string>>(new Set());
+
+  readonly Math   = Math;
+  platformSort    = signal<'default' | 'desc' | 'asc'>('default');
+  comparison      = signal<PeriodComparison | null>(null);
+  catSortMap      = signal<Record<string, 'default' | 'desc' | 'asc'>>({});
+
+  sortedPlatforms = computed(() => {
+    const list  = this.platforms();
+    const order = this.platformSort();
+    if (order === 'default') return list;
+    return [...list].sort((a, b) =>
+      order === 'desc' ? b.totalRequests - a.totalRequests : a.totalRequests - b.totalRequests
+    );
+  });
 
   totalAtRisk       = computed(() => this.platforms().reduce((s, p) => s + p.totalRequestsAtRisk, 0));
   totalFailed       = computed(() => this.platforms().reduce((s, p) => s + p.failedCount, 0));
@@ -84,27 +99,74 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
     return platform.totalRequests - platform.totalRequestsAtRisk;
   }
 
+  getCatSort(name: string): 'default' | 'desc' | 'asc' { return this.catSortMap()[name] ?? 'default'; }
+
+  toggleCatSort(name: string, event: Event): void {
+    event.stopPropagation();
+    const cur = this.getCatSort(name);
+    const next: 'default' | 'desc' | 'asc' = cur === 'default' ? 'desc' : cur === 'desc' ? 'asc' : 'default';
+    this.catSortMap.update(m => ({ ...m, [name]: next }));
+  }
+
+  catSortIcon(name: string): string {
+    const s = this.getCatSort(name);
+    if (s === 'desc') return '↓';
+    if (s === 'asc')  return '↑';
+    return '↕';
+  }
+
+  private sortGroups(groups: MatchedByGroup[], sort: 'default' | 'desc' | 'asc'): MatchedByGroup[] {
+    if (sort === 'desc') return [...groups].sort((a, b) => (b.totalRequests ?? 0) - (a.totalRequests ?? 0));
+    if (sort === 'asc')  return [...groups].sort((a, b) => (a.totalRequests ?? 0) - (b.totalRequests ?? 0));
+    return groups;
+  }
+
   failingGroups(platform: PlatformGroup): MatchedByGroup[] {
-    return (platform.matchedByGroups || []).filter(g => !this.isEnrichable(g.matchedBy));
+    const base = (platform.matchedByGroups || [])
+      .filter(g => !this.isEnrichable(g.matchedBy))
+      .sort((a, b) => this.catOrder(a.matchedBy) - this.catOrder(b.matchedBy));
+    return this.sortGroups(base, this.getCatSort(platform.name));
   }
 
   enrichableGroups(platform: PlatformGroup): MatchedByGroup[] {
-    return (platform.matchedByGroups || []).filter(g => this.isEnrichable(g.matchedBy));
+    const base = (platform.matchedByGroups || [])
+      .filter(g => this.isEnrichable(g.matchedBy))
+      .sort((a, b) => this.catOrder(a.matchedBy) - this.catOrder(b.matchedBy));
+    return this.sortGroups(base, this.getCatSort(platform.name));
+  }
+
+  private catOrder(mb: string): number {
+    if (mb.startsWith('C_'))  return 0;
+    if (mb.startsWith('TS_')) return 1;
+    if (mb.startsWith('S_'))  return 2;
+    if (mb.startsWith('G_'))  return 3;
+    if (mb.startsWith('R_'))  return 4;
+    if (mb.startsWith('CG_')) return 5;
+    return 6;
   }
 
   private initGroups(groups: MatchedByGroup[]): MatchedByGroup[] {
-    return (groups || []).map(g => ({
-      ...g,
-      enrichable: this.isEnrichable(g.matchedBy),
-      sortDesc: true,
-      rows: [],
-      expanded: false,
-      detailLoaded: false,
-      detailLoading: false,
-      detailLoadingMore: false,
-      detailOffset: 0,
-      detailHasMore: true,
-    }));
+    return (groups || [])
+      .sort((a, b) => this.catOrder(a.matchedBy) - this.catOrder(b.matchedBy))
+      .map(g => ({
+        ...g,
+        enrichable: this.isEnrichable(g.matchedBy),
+        sortDesc: true,
+        rows: [],
+        expanded: false,
+        detailLoaded: false,
+        detailLoading: false,
+        detailLoadingMore: false,
+        detailOffset: 0,
+        detailHasMore: true,
+        activeTab: 'content' as const,
+        searchVal: '',
+        hitsRows: [],
+        hitsLoading: false,
+        hitsLoaded: false,
+        hitsOffset: 0,
+        hitsHasMore: false,
+      }));
   }
 
   sortedRows(group: MatchedByGroup): FailedRow[] {
@@ -145,6 +207,12 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
     this.error.set('');
     this.currentOffset = 0;
     this.total = 0;
+    this.comparison.set(null);
+
+    // Load comparison in parallel — doesn't block the main list
+    this.api.getPeriodComparison(this.filters)
+      .pipe(takeUntil(this.cancelTable$), takeUntil(this.destroy$))
+      .subscribe({ next: c => this.comparison.set(c), error: () => {} });
 
     this.api.getByPlatform(this.filters, 0, 25)
       .pipe(takeUntil(this.cancelTable$), takeUntil(this.destroy$))
@@ -181,7 +249,20 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
 
   // Loads a page of content rows for a specific matchedBy group.
   // offset=0 is the initial load; higher offsets append to existing rows.
-  private loadGroupDetail(platformName: string, matchedBy: string, offset: number, enrichable = false) {
+  private loadGroupDetail(platformName: string, matchedBy: string, offset: number, enrichable = false, resetRows = false) {
+    // Read search value from current state before mutating
+    const search = this.platforms().find(p => p.name === platformName)
+      ?.matchedByGroups?.find(g => g.matchedBy === matchedBy)?.searchVal ?? '';
+    if (resetRows) {
+      this.platforms.update(list =>
+        list.map(p => p.name !== platformName ? p : {
+          ...p,
+          matchedByGroups: p.matchedByGroups?.map(g =>
+            g.matchedBy !== matchedBy ? g : { ...g, rows: [], detailOffset: 0, detailLoaded: false }
+          ),
+        })
+      );
+    }
     this.platforms.update(list =>
       list.map(p => p.name !== platformName ? p : {
         ...p,
@@ -194,7 +275,7 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
       })
     );
 
-    this.api.getPlatformDetail(platformName, this.filters, matchedBy, offset, 10, enrichable)
+    this.api.getPlatformDetail(platformName, this.filters, matchedBy, offset, 10, enrichable, search)
       .pipe(takeUntil(this.cancelTable$), takeUntil(this.destroy$))
       .subscribe({
         next: ({ rows, meta }) => {
@@ -252,6 +333,9 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
 
     if (opening && group && !group.detailLoaded && !group.detailLoading) {
       this.loadGroupDetail(platformName, matchedBy, 0, group.enrichable ?? false);
+    }
+    if (opening && group && !group.hitsLoaded && !group.hitsLoading) {
+      this.loadGroupHits(platformName, matchedBy, true);
     }
   }
 
@@ -344,8 +428,128 @@ export class PlatformQueueComponent implements OnInit, OnChanges, AfterViewInit,
       });
   }
 
+  // ── Group tab / search / hits ─────────────────────────────────────
+
+  setGroupTab(platformName: string, matchedBy: string, tab: 'content' | 'urls' | 'hits'): void {
+    this.platforms.update(l => l.map(p => p.name !== platformName ? p : {
+      ...p,
+      matchedByGroups: p.matchedByGroups?.map(g => g.matchedBy !== matchedBy ? g : { ...g, activeTab: tab }),
+    }));
+  }
+
+  onGroupSearch(platformName: string, matchedBy: string, val: string): void {
+    this.platforms.update(l => l.map(p => p.name !== platformName ? p : {
+      ...p,
+      matchedByGroups: p.matchedByGroups?.map(g =>
+        g.matchedBy !== matchedBy ? g : { ...g, searchVal: val }
+      ),
+    }));
+    const group = this.platforms().find(p => p.name === platformName)
+      ?.matchedByGroups?.find(g => g.matchedBy === matchedBy);
+    this.loadGroupDetail(platformName, matchedBy, 0, group?.enrichable ?? false, true);
+  }
+
+  groupUrlRows(group: MatchedByGroup): { bundleId: string; requests: number; contentCount: number }[] {
+    const map: Record<string, { requests: number; ids: Set<string> }> = {};
+    for (const r of group.rows ?? []) {
+      const key = r.bundleId || '—';
+      if (!map[key]) map[key] = { requests: 0, ids: new Set() };
+      map[key].requests += r.requestsAtRisk;
+      map[key].ids.add(r.contentId);
+    }
+    return Object.entries(map)
+      .map(([bundleId, v]) => ({ bundleId, requests: v.requests, contentCount: v.ids.size }))
+      .sort((a, b) => b.requests - a.requests);
+  }
+
+  groupUrlMaxRequests(group: MatchedByGroup): number {
+    const urls = this.groupUrlRows(group);
+    return urls.length ? Math.max(...urls.map(u => u.requests)) : 1;
+  }
+
+  groupHitsMaxCount(group: MatchedByGroup): number {
+    const rows = group.hitsRows ?? [];
+    return rows.length ? rows[0].hits : 1;
+  }
+
+  loadGroupHits(platformName: string, matchedBy: string, reset: boolean): void {
+    const g      = this.platforms().find(p => p.name === platformName)?.matchedByGroups?.find(g => g.matchedBy === matchedBy);
+    const offset = reset ? 0 : (g?.hitsOffset ?? 0);
+    this.platforms.update(l => l.map(p => p.name !== platformName ? p : {
+      ...p,
+      matchedByGroups: p.matchedByGroups?.map(g => g.matchedBy !== matchedBy ? g : {
+        ...g, ...(reset ? { hitsRows: [], hitsOffset: 0, hitsLoaded: false } : {}), hitsLoading: true,
+      }),
+    }));
+    this.api.getContentHits(platformName, this.filters, matchedBy, offset)
+      .pipe(takeUntil(this.cancelTable$), takeUntil(this.destroy$))
+      .subscribe({
+        next: res => {
+          this.platforms.update(l => l.map(p => p.name !== platformName ? p : {
+            ...p,
+            matchedByGroups: p.matchedByGroups?.map(g => {
+              if (g.matchedBy !== matchedBy) return g;
+              const existing = reset ? [] : (g.hitsRows ?? []);
+              return { ...g, hitsRows: [...existing, ...res.rows], hitsHasMore: res.hasMore, hitsOffset: offset + res.rows.length, hitsLoading: false, hitsLoaded: true };
+            }),
+          }));
+        },
+        error: () => this.platforms.update(l => l.map(p => p.name !== platformName ? p : {
+          ...p,
+          matchedByGroups: p.matchedByGroups?.map(g => g.matchedBy !== matchedBy ? g : { ...g, hitsLoading: false }),
+        })),
+      });
+  }
+
+  loadGroupHitsMore(platformName: string, matchedBy: string): void {
+    const g = this.platforms().find(p => p.name === platformName)?.matchedByGroups?.find(g => g.matchedBy === matchedBy);
+    if (g?.hitsHasMore && !g.hitsLoading) this.loadGroupHits(platformName, matchedBy, false);
+  }
+
+  copyToClipboard(text: string): void {
+    navigator.clipboard?.writeText(text).catch(() => {
+      const el = document.createElement('textarea');
+      el.value = text; document.body.appendChild(el); el.select();
+      document.execCommand('copy'); document.body.removeChild(el);
+    });
+  }
+
   expandAll()   { this.platforms.update(l => l.map(p => ({ ...p, expanded: true  }))); }
   collapseAll() { this.platforms.update(l => l.map(p => ({ ...p, expanded: false }))); }
+
+  fmtDeltaRate(d: number): string { return (d >= 0 ? '+' : '') + d.toFixed(2) + '%'; }
+  fmtDeltaReqs(d: number): string { return (d >= 0 ? '+' : '') + this.formatNumber(Math.abs(d)) + (d < 0 ? ' lost' : ' gained'); }
+
+  platformDeltaReqs(p: PlatformGroup): number {
+    return p.totalRequests - (p.prevTotalRequests ?? 0);
+  }
+
+  platformDeltaRate(p: PlatformGroup): number {
+    const prev = p.prevTotalRequests ?? 0;
+    if (!prev) return 0;
+    const curRate  = p.totalRequests ? (p.totalRequests - p.totalRequestsAtRisk) / p.totalRequests * 100 : 0;
+    const prevFail = p.prevTotalRequestsAtRisk ?? 0;
+    const prevRate = (prev - prevFail) / prev * 100;
+    return curRate - prevRate;
+  }
+
+  togglePlatformSort() {
+    this.platformSort.update(s => s === 'default' ? 'desc' : s === 'desc' ? 'asc' : 'default');
+  }
+
+  platformSortIcon(): string {
+    const s = this.platformSort();
+    if (s === 'desc') return '↓';
+    if (s === 'asc')  return '↑';
+    return '↕';
+  }
+
+  openPlatformDetail(platform: PlatformGroup, event: MouseEvent): void {
+    event.stopPropagation();
+    const { dateFrom, dateTo } = this.filters;
+    const url = `/platform/${encodeURIComponent(platform.name)}?dateFrom=${dateFrom}&dateTo=${dateTo}`;
+    window.open(url, '_blank');
+  }
 
   load() { this.loadTable(); }
 

@@ -1,0 +1,186 @@
+:host { display: block; }
+
+// Shared grid for outer header + platform accordion headers
+$cols: 200px 1fr 90px 90px 90px 80px;
+// Inner grid — bar moves under app ID, so no bar column here
+$inner-cols: 1fr 90px 90px 90px 80px;
+
+.panel-card  { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+.panel-header{ display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #f3f4f6; }
+.panel-title { font-size: 14px; font-weight: 700; color: #1a2332; }
+.panel-sub   { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+.loading-chip{ font-size: 11px; color: #6b7280; background: #f3f4f6; border-radius: 20px; padding: 3px 10px; flex-shrink: 0; }
+
+// ── Column header row (sticky) ─────────────────────────────────────────────────
+.col-header-row {
+  display: grid;
+  grid-template-columns: $cols;
+  background: #f9fafb;
+  border-bottom: 1px solid #f3f4f6;
+  position: sticky; top: 0; z-index: 2;
+
+  > .ch {
+    padding: 9px 14px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: #9ca3af; white-space: nowrap;
+  }
+  .ch-num  { text-align: right; }
+  .ch-rate { text-align: right; }
+}
+
+// ── Scrollable accordion container ─────────────────────────────────────────────
+.acc-scroll {
+  max-height: 520px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #e5e7eb #f9fafb;
+}
+
+// ── Platform accordion header ──────────────────────────────────────────────────
+.platform-header {
+  display: grid;
+  grid-template-columns: $cols;
+  align-items: center;
+  cursor: pointer;
+  background: #fff;
+  border-bottom: 1px solid #f3f4f6;
+  user-select: none;
+  transition: background .12s;
+
+  &:hover { background: #f9fafb; }
+
+  > * { padding: 10px 14px; }
+}
+
+.unknown-header {
+  background: #fafafa;
+  &:hover { background: #f3f4f6; }
+}
+
+.ph-name {
+  display: flex; align-items: center; gap: 6px; overflow: hidden;
+}
+
+.chevron {
+  font-size: 14px; color: #9ca3af; flex-shrink: 0;
+  display: inline-block; transition: transform .2s;
+  transform: rotate(0deg);
+  &.open { transform: rotate(90deg); }
+}
+
+.ph-label {
+  font-size: 12px; font-weight: 600; color: #1a2332;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.unknown-label { color: #6b7280; font-style: italic; }
+
+.appid-badge {
+  font-size: 10px; font-weight: 600; flex-shrink: 0;
+  background: #f3f4f6; color: #6b7280;
+  border-radius: 10px; padding: 1px 7px;
+}
+
+.ph-bar-cell {
+  display: flex; align-items: center;
+}
+
+.ph-num {
+  text-align: right; font-size: 12px; font-family: var(--mono, monospace);
+}
+
+.ph-rate { text-align: right; }
+
+// ── Platform body wrapper ──────────────────────────────────────────────────────
+.platform-body {
+  border-bottom: 1px solid #f3f4f6;
+  background: #fafafa;
+  padding: 10px;
+}
+
+// Bordered card — makes it clear these rows belong to the accordion above
+.body-inner {
+  border: 0.5px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+// ── Inner column headers (uses inner-cols — no bar column) ────────────────────
+.inner-col-header {
+  display: grid;
+  grid-template-columns: $inner-cols;
+  background: #f9fafb;
+  border-bottom: 0.5px solid #e5e7eb;
+
+  > .ich {
+    padding: 7px 14px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: #9ca3af; white-space: nowrap;
+  }
+  .ich-num  { text-align: right; }
+  .ich-rate { text-align: right; }
+}
+
+// ── Appid rows inside the card ─────────────────────────────────────────────────
+.appid-row {
+  display: grid;
+  grid-template-columns: $inner-cols;
+  align-items: center;
+  border-bottom: 0.5px solid #f3f4f6;
+  transition: background .12s;
+
+  &:last-child { border-bottom: none; }
+  &:hover { background: #f9fafb; }
+
+  > * { padding: 7px 14px; }
+}
+
+.ar-name {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 8px 14px !important;
+}
+
+.appid-label {
+  font-size: 11px; font-family: var(--mono, monospace); color: #6b7280;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.unknown-appid { color: #9ca3af; }
+
+// Smaller inline bar — sits directly under the app ID text
+.inner-bar {
+  height: 4px; background: #e5e7eb; border-radius: 2px;
+  overflow: hidden; display: flex; width: 100%;
+
+  .bar-matched   { height: 100%; background: #22c55e; flex-shrink: 0; }
+  .bar-unmatched { height: 100%; background: #ef4444; flex-shrink: 0; }
+}
+
+.ar-num {
+  text-align: right; font-size: 11px; font-family: var(--mono, monospace);
+}
+
+.ar-rate { text-align: right; }
+
+// ── Shared: bars ───────────────────────────────────────────────────────────────
+.bar-track    { height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; display: flex; width: 100%; }
+.bar-matched  { height: 100%; background: #22c55e; flex-shrink: 0; }
+.bar-unmatched{ height: 100%; background: #ef4444; flex-shrink: 0; }
+
+// ── Shared: value colours ──────────────────────────────────────────────────────
+.unmatched-val { color: #ef4444; font-weight: 600; }
+.matched-val   { color: #16a34a; font-weight: 600; }
+.total-val     { color: #6b7280; }
+
+// ── Shared: rate badge ─────────────────────────────────────────────────────────
+.rate-badge {
+  display: inline-block; font-size: 11px; font-weight: 600;
+  border-radius: 4px; padding: 2px 7px; white-space: nowrap;
+  &.rate-low  { background: #fee2e2; color: #dc2626; }
+  &.rate-mid  { background: #fef9c3; color: #a16207; }
+  &.rate-high { background: #dcfce7; color: #15803d; }
+}
+
+.empty-state { padding: 40px; text-align: center; color: #9ca3af; font-size: 13px; }

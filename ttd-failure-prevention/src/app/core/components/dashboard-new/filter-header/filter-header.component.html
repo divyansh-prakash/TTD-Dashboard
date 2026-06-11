@@ -1,0 +1,47 @@
+<div class="filters-bar">
+  <div class="filter-group">
+    <label>Date Range</label>
+    <select [(ngModel)]="dateRange">
+      @for (opt of dateRangeOptions; track opt.value) {
+        <option [value]="opt.value">{{ opt.label }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="filter-group">
+    <label>Platform</label>
+    <div class="multiselect" [class.open]="platformsOpen()">
+      <button class="multiselect-trigger" type="button" (click)="togglePlatformsDropdown()">
+        <span>{{ platformFilterLabel }}</span>
+        <svg class="ms-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      @if (platformsOpen()) {
+        <div class="ms-backdrop" (click)="closePlatformsDropdown()"></div>
+        <div class="ms-dropdown">
+          <label class="ms-option">
+            <input type="checkbox" [checked]="filters.platforms.length === 0" (change)="clearPlatformFilter()">
+            <span>All Platforms</span>
+          </label>
+          @for (p of filterPlatforms(); track p) {
+            <label class="ms-option">
+              <input type="checkbox" [checked]="isPlatformSelected(p)" (change)="togglePlatformFilter(p)">
+              <span>{{ p }}</span>
+            </label>
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  <div class="filter-group">
+    <label>Region</label>
+    <select [ngModel]="filters.region" (ngModelChange)="setRegion($event)">
+      @for (o of regionOptions; track o.value) {
+        <option [value]="o.value">{{ o.label }}</option>
+      }
+    </select>
+  </div>
+
+  <button class="btn-apply" (click)="applyFilters()">Apply</button>
+  <button class="btn-reset"  (click)="resetFilters()">Reset</button>
+</div>

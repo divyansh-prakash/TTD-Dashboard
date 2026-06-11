@@ -2,8 +2,14 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
+// Prevent unhandled promise rejections (e.g. ClickHouse timeout / stream abort) from killing the process
+process.on('unhandledRejection', (err) => {
+  console.error('[UNHANDLED REJECTION]', err?.message || err);
+});
+
 const failureQueueRouter = require('./routes/failure-queue');
 const { getAllPlatformUrlMappings } = require('./repositories/platformUrlMap.repo');
+const { getContentIdCache } = require('./repositories/contentIdMap.repo');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -31,15 +37,22 @@ app.use((req, res, next) => {
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.use('/api/failure-queue', failureQueueRouter);
 
-// Pre-load platform URL mappings before accepting requests so the cache is
-// warm and never competes with live ClickHouse queries.
-console.log('[STARTUP] Pre-loading platform URL mappings...');
-getAllPlatformUrlMappings()
+console.log('[STARTUP] Pre-loading caches…');
+Promise.all([
+  getAllPlatformUrlMappings(),
+])
   .then(() => {
-    console.log('[STARTUP] Cache warm. Starting server...');
-    app.listen(PORT, () => console.log(`[STARTUP] Server running on http://localhost:${PORT}`));
+    console.log('[STARTUP] Caches warm. Starting server…');
+    app.listen(PORT, () => {
+      console.log(`[STARTUP] Server running on http://localhost:${PORT}`);
+      // Build dpttd content-ID cache in the background — Panel 2 awaits it on first request.
+      getContentIdCache().then(() => console.log('[STARTUP] dpttd content-ID cache ready'));
+    });
   })
   .catch((err) => {
-    console.error('[STARTUP] Failed to load platform URL mappings, starting anyway:', err.message);
-    app.listen(PORT, () => console.log(`[STARTUP] Server running on http://localhost:${PORT}`));
+    console.error('[STARTUP] Cache load failed, starting anyway:', err.message);
+    app.listen(PORT, () => {
+      console.log(`[STARTUP] Server running on http://localhost:${PORT}`);
+      getContentIdCache().then(() => console.log('[STARTUP] dpttd content-ID cache ready'));
+    });
   });

@@ -1,0 +1,148 @@
+<!-- ── Panel 1: App ID Coverage ─────────────────────────────────────── -->
+<div class="panel-card">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">App ID Coverage</div>
+      <div class="panel-sub">Distinct app IDs seen in Pubmatic — known vs unknown in platform mapping · click to inspect</div>
+    </div>
+    @if (appidLoading()) { <div class="loading-chip">Loading…</div> }
+  </div>
+
+  @if (appidData(); as d) {
+    <div class="chart-body">
+      <!-- Pie -->
+      <div class="pie-section">
+        <div class="pie-wrap"><canvas #pieCanvas></canvas></div>
+        <div class="pie-legend">
+          <div class="leg-row clickable"
+               (click)="openModal({ platform: 'Known', count: d.knownCount, appids: d.breakdown.filter(p => p.platform !== 'Unknown').flatMap(p => p.appids) })">
+            <div class="leg-dot known"></div>
+            <div>
+              <div class="leg-label">Known</div>
+              <div class="leg-val">{{ d.knownCount }}</div>
+              <div class="leg-pct">{{ pct(d.knownCount, d.totalAppids) }}</div>
+            </div>
+          </div>
+          <div class="leg-row clickable"
+               (click)="openModal(d.breakdown[d.breakdown.length - 1]?.platform === 'Unknown' ? d.breakdown[d.breakdown.length - 1] : { platform: 'Unknown', count: d.unknownCount, appids: [] })">
+            <div class="leg-dot unknown"></div>
+            <div>
+              <div class="leg-label">Unknown</div>
+              <div class="leg-val">{{ d.unknownCount }}</div>
+              <div class="leg-pct">{{ pct(d.unknownCount, d.totalAppids) }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <!-- Bars -->
+      <div class="bars-section">
+        <div class="bars-label">By platform (app ID count)</div>
+        @for (p of d.breakdown; track p.platform) {
+          <div class="bar-row clickable" (click)="openModal(p)" title="Click to view app IDs">
+            <div class="bar-name" [class.unknown-name]="p.platform === 'Unknown'">{{ p.platform }}</div>
+            <div class="bar-track">
+              <div class="bar-fill" [class.unknown-fill]="p.platform === 'Unknown'"
+                   [style.width.%]="barWidth(p.count, d.breakdown)"></div>
+            </div>
+            <div class="bar-meta">
+              <span class="bar-hits">{{ p.count }}</span>
+              <span class="bar-pct">{{ pct(p.count, d.totalAppids) }}</span>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  } @else if (!appidLoading()) {
+    <div class="empty-state">No data for the selected date range.</div>
+  }
+</div>
+
+<!-- ── Panel 2: Content ID Dataset Coverage ──────────────────────────── -->
+<!-- <div class="panel-card">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">Content ID Dataset Coverage</div>
+      <div class="panel-sub">
+        Pubmatic content IDs (selected period) that exist in our dpttd platform datasets ·
+        @if (coverageTotals().pubmaticIds > 0) {
+          overall {{ coverageTotals().rate }}% covered ({{ fmt(coverageTotals().covered) }} / {{ fmt(coverageTotals().pubmaticIds) }})
+        }
+      </div>
+    </div>
+    @if (coverageLoading()) { <div class="loading-chip">Loading… may take ~2 min first time</div> }
+  </div>
+
+  @if (coverageData().length) {
+    <div class="cov-table-wrap">
+      <table class="cov-table">
+        <thead>
+          <tr>
+            <th class="cov-col-platform">Platform</th>
+            <th class="cov-col-bar"></th>
+            <th class="cov-col-num">Covered</th>
+            <th class="cov-col-num">Uncovered</th>
+            <th class="cov-col-num">Pubmatic IDs</th>
+            <th class="cov-col-num">dpttd IDs</th>
+            <th class="cov-col-rate">Coverage</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of coverageData(); track r.platform) {
+            <tr>
+              <td class="cov-col-platform"><span class="platform-name">{{ r.platform }}</span></td>
+              <td class="cov-col-bar">
+                <div class="bar-track">
+                  <div class="bar-covered"   [style.width.%]="covBarPct(r.covered,   r.pubmaticIds)"></div>
+                  <div class="bar-uncovered" [style.width.%]="covBarPct(r.uncovered, r.pubmaticIds)"></div>
+                </div>
+              </td>
+              <td class="cov-col-num covered-val">{{ fmt(r.covered) }}</td>
+              <td class="cov-col-num uncovered-val">{{ fmt(r.uncovered) }}</td>
+              <td class="cov-col-num total-val">{{ fmt(r.pubmaticIds) }}</td>
+              <td class="cov-col-num dpttd-val">{{ r.hasDpttdData ? fmt(r.dpttdIds) : '—' }}</td>
+              <td class="cov-col-rate">
+                @if (r.hasDpttdData) {
+                  <span class="rate-badge"
+                        [class.rate-low]="r.coverageRate < 30"
+                        [class.rate-mid]="r.coverageRate >= 30 && r.coverageRate < 70"
+                        [class.rate-high]="r.coverageRate >= 70">{{ r.coverageRate }}%</span>
+                } @else {
+                  <span class="rate-badge rate-none">No dataset</span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else if (!coverageLoading()) {
+    <div class="empty-state">No data for the selected date range.</div>
+  } @else {
+    <div class="cov-preparing">
+      <div class="prep-spinner"></div>
+      <div class="prep-text">Building dataset cache… this takes ~2 min on first load after server restart</div>
+    </div>
+  }
+</div> -->
+
+<!-- ── Modal ────────────────────────────────────────────────────────── -->
+@if (modal(); as m) {
+  <div class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <span class="modal-title">{{ m.title }}</span>
+        <span class="modal-count">{{ m.appids.length }} app IDs</span>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        @for (id of m.appids; track id) {
+          <div class="appid-row">{{ id }}</div>
+        }
+        @if (!m.appids.length) {
+          <div class="modal-empty">No app IDs found.</div>
+        }
+      </div>
+    </div>
+  </div>
+}

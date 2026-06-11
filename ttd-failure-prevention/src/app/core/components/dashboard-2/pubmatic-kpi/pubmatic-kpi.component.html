@@ -1,0 +1,63 @@
+@if (loading()) {
+  <div class="kgrid">
+    @for (i of [1,2,3,4,5,6,7,8,9]; track i) { <div class="kcard skeleton"></div> }
+  </div>
+} @else if (data()) {
+  <div class="kgrid">
+
+    <div class="kcard blue">
+      <div class="klbl"><i class="ti ti-radar"></i>Total hits</div>
+      <div class="kval" style="color:#1d4ed8">{{ fmt(data()!.totalHits) }}</div>
+      <div class="ksub">all requests</div>
+    </div>
+
+    <div class="kcard teal">
+      <div class="klbl"><i class="ti ti-send"></i>Total served</div>
+      <div class="kval" style="color:#0f766e">{{ fmt(data()!.servedRequests) }}</div>
+      <div class="ksub">matched requests</div>
+    </div>
+
+    <div class="kcard gray">
+      <div class="klbl"><i class="ti ti-fingerprint"></i>Unique pairs</div>
+      <div class="kval" style="color:#374151">{{ fmt(data()!.uniqueTotal) }}</div>
+      <div class="ksub">distinct content_id × appid</div>
+    </div>
+
+    <div class="kcard green">
+      <div class="klbl"><i class="ti ti-circle-check"></i>Unique matched pairs</div>
+      <div class="kval" style="color:#166534">{{ fmt(data()!.uniqueMatched) }}</div>
+      <div class="ksub">pairs with a segment match</div>
+    </div>
+
+    <div class="kcard red">
+      <div class="klbl"><i class="ti ti-circle-x"></i>Unique unmatched pairs</div>
+      <div class="kval" style="color:#991b1b">{{ fmt(data()!.uniqueUnmatched) }}</div>
+      <div class="ksub">pairs with no match</div>
+    </div>
+
+    <div class="kcard amber">
+      <div class="klbl"><i class="ti ti-percentage"></i>Unique pairs Match rate</div>
+      <div class="kval" style="color:#92400e">{{ pct(data()!.matchRate) }}</div>
+      <div class="ksub">of unique pairs matched</div>
+    </div>
+
+    <div class="kcard indigo">
+      <div class="klbl"><i class="ti ti-stack-2"></i>Unique content IDs</div>
+      <div class="kval" style="color:#3730a3">{{ fmt(data()!.uniqueContentIds) }}</div>
+      <div class="ksub">distinct content IDs seen</div>
+    </div>
+
+    <div class="kcard purple">
+      <div class="klbl"><i class="ti ti-tag"></i>Content IDs matched</div>
+      <div class="kval" style="color:#6b21a8">{{ fmt(data()!.uniqueContentMatched) }} <span class="krate">{{ pct(data()!.contentMatchRate) }}</span></div>
+      <div class="ksub">distinct content IDs with a match</div>
+    </div>
+
+    <div class="kcard violet">
+      <div class="klbl"><i class="ti ti-chart-bar"></i>Matched IDs total requests</div>
+      <div class="kval" style="color:#7c3aed">{{ fmt(data()!.matchedContentTotalReqs) }}</div>
+      <div class="ksub">all requests from matched content IDs</div>
+    </div>
+
+  </div>
+}

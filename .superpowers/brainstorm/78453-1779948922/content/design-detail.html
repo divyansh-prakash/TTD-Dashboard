@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Platform Detail — Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --accent:        #2d9b6f;
+    --accent-light:  #d1fae5;
+    --accent-dim:    #1e7a55;
+    --sidebar-bg:    #1e293b;
+    --sidebar-text:  #94a3b8;
+    --bg:            #f4f5f7;
+    --surface:       #ffffff;
+    --border:        #e2e8f0;
+    --text-primary:  #0f172a;
+    --text-secondary:#64748b;
+    --red:           #dc2626;
+    --red-light:     #fee2e2;
+    --amber:         #d97706;
+    --amber-light:   #fef3c7;
+    --green:         #2d9b6f;
+    --green-light:   #d1fae5;
+    --mono:          'IBM Plex Mono', monospace;
+    --radius:        8px;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    font-size: 13px;
+  }
+
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 220px; min-width: 220px;
+    background: var(--sidebar-bg);
+    display: flex; flex-direction: column;
+    height: 100vh;
+  }
+  .sidebar-logo { padding: 20px 16px 16px; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .logo-mark { display: flex; align-items: center; gap: 10px; }
+  .logo-icon {
+    width: 34px; height: 34px; background: var(--accent);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; color: #fff;
+  }
+  .logo-text { font-size: 14px; font-weight: 600; color: #fff; }
+  .logo-sub  { font-size: 11px; color: var(--sidebar-text); }
+  .nav-section { padding: 12px 0; flex: 1; }
+  .nav-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #475569; padding: 0 16px 8px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; font-size: 13px; font-weight: 500; color: var(--sidebar-text); }
+  .nav-item.active { background: rgba(255,255,255,.10); color: #fff; }
+  .sidebar-footer { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.08); }
+  .version-tag { font-size: 11px; color: #475569; }
+
+  /* ── Main ── */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .top-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 24px; height: 56px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .back-btn {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; color: var(--text-secondary);
+    padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); cursor: pointer;
+  }
+  .top-bar-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+  .top-bar-sep { color: var(--border); }
+  .top-bar-sub { font-size: 13px; color: var(--text-secondary); }
+  .top-bar-filters { margin-left: auto; display: flex; align-items: flex-end; gap: 10px; }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; }
+  .filter-group label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary); }
+  .filter-group select {
+    height: 36px; padding: 0 10px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--bg); color: var(--text-primary);
+    font-size: 13px; font-family: inherit; outline: none; min-width: 140px;
+  }
+  .date-display { font-size: 11px; color: var(--text-secondary); font-family: var(--mono); padding-bottom: 8px; }
+
+  .content { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── Stat blocks ── */
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px;
+  }
+  .chip-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-secondary); margin-bottom: 6px; }
+  .chip-value { font-size: 22px; font-weight: 700; font-family: var(--mono); color: var(--text-primary); line-height: 1; }
+  .chip-value.green { color: var(--green); }
+  .chip-value.red   { color: var(--red); }
+  .chip-value.amber { color: var(--amber); }
+  .chip-sub { font-size: 11px; font-family: var(--mono); color: var(--text-secondary); margin-top: 4px; }
+
+  /* ── Middle row ── */
+  .mid-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .card-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-secondary); margin-bottom: 14px; font-family: var(--mono); }
+
+  /* Donut */
+  .pie-wrap { display: flex; align-items: center; gap: 20px; }
+  .pie {
+    width: 96px; height: 96px; border-radius: 50%;
+    background: conic-gradient(
+      #3b82f6 0deg 43.2deg,
+      var(--green) 43.2deg 352deg,
+      var(--red) 352deg 353.2deg,
+      #cbd5e1 353.2deg 360deg
+    );
+    flex-shrink: 0; position: relative;
+  }
+  /* solid pie — no center hole */
+  .legend { display: flex; flex-direction: column; gap: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-primary); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .legend-pct { font-family: var(--mono); font-size: 11px; color: var(--text-secondary); margin-left: auto; min-width: 36px; text-align: right; }
+
+  /* Category breakdown */
+  .cat-list { display: flex; flex-direction: column; gap: 12px; }
+  .cat-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 5px; }
+  .cat-name { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .cat-type { font-size: 11px; color: var(--text-secondary); margin-left: 6px; }
+  .cat-pct { font-size: 11px; font-family: var(--mono); color: var(--text-secondary); }
+  .bar-track { height: 5px; background: var(--bg); border-radius: 3px; overflow: hidden; border: 1px solid var(--border); }
+  .bar-fill { height: 100%; border-radius: 3px; background: var(--accent); }
+  .bar-fill.fail { background: var(--red); }
+
+  /* ── Unmatched — same amber treatment as "Others" card ── */
+  .unmatched-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .unmatched-header {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--amber) 4%, var(--bg));
+  }
+  .unmatched-header-top { display: flex; align-items: center; gap: 10px; }
+  .unmatched-title {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--amber); font-family: var(--mono);
+    white-space: nowrap;
+  }
+  .risk-badge {
+    font-size: 11px; font-weight: 600; font-family: var(--mono);
+    color: var(--amber);
+  }
+  .search-box {
+    display: flex; align-items: center; gap: 7px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 10px; flex: 1;
+  }
+  .search-box input {
+    border: none; background: transparent; font-size: 12px;
+    outline: none; flex: 1; color: var(--text-primary); font-family: inherit;
+  }
+  .search-box input::placeholder { color: var(--text-secondary); }
+  .tabs-segmented { display: flex; background: var(--border); border-radius: 6px; padding: 2px; gap: 2px; }
+  .tab-btn {
+    padding: 5px 14px; font-size: 12px; font-weight: 600;
+    font-family: inherit; color: var(--text-secondary);
+    background: transparent; border: none; border-radius: 4px; cursor: pointer;
+    white-space: nowrap;
+  }
+  .tab-btn.active { background: var(--surface); color: var(--amber); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+
+  .unmatched-body { overflow-y: auto; max-height: 220px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    position: sticky; top: 0; z-index: 2;
+    padding: 7px 14px; text-align: left;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-primary) 4%, var(--surface));
+    border-bottom: 2px solid var(--border);
+    box-shadow: 0 2px 4px rgba(0,0,0,.06);
+    white-space: nowrap;
+  }
+  thead th.r { text-align: right; }
+  thead th.sort-active { color: var(--accent); }
+  tbody td {
+    padding: 8px 14px; font-size: 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    font-family: var(--mono); color: var(--text-primary); vertical-align: middle;
+  }
+  tbody td.dim { color: var(--text-secondary); }
+  tbody td.r { text-align: right; }
+  tbody td.red { color: var(--red); font-weight: 600; }
+  tbody tr:hover td { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .note {
+    font-size: 11px; color: var(--text-secondary);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 14px; font-family: var(--mono);
+  }
+  .note code { background: var(--bg); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <div class="logo-icon">SP</div>
+        <div>
+          <div class="logo-text">Silverpush CTV</div>
+          <div class="logo-sub">TTD Enrichment</div>
+        </div>
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Navigation</div>
+      <div class="nav-item">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Failure Queue
+      </div>
+      <div class="nav-item active">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Platform Detail
+      </div>
+    </div>
+    <div class="sidebar-footer"><div class="version-tag">v1.0.0</div></div>
+  </div>
+
+  <div class="main">
+    <div class="top-bar">
+      <div class="back-btn">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to Queue
+      </div>
+      <div class="top-bar-title">Roku</div>
+      <div class="top-bar-sep">/</div>
+      <div class="top-bar-sub">Platform Detail</div>
+      <div class="top-bar-filters">
+        <div class="filter-group">
+          <label>Date Range</label>
+          <select>
+            <option>Yesterday</option>
+            <option>Today</option>
+            <option>Last 7 days</option>
+            <option>Last 30 days</option>
+          </select>
+        </div>
+        <div class="date-display">2026-05-27</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Stat blocks -->
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="chip-label">Total Requests</div>
+          <div class="chip-value">10.3M</div>
+          <div class="chip-sub">100%</div>
+        </div>
+        <div class="stat-card">
+          <div class="chip-label">Success (Served)</div>
+          <div class="chip-value green">9.05M</div>
+          <div class="chip-sub">87.9%</div>
+        </div>
+        <div class="stat-card">
+          <div class="chip-label">Failed</div>
+          <div class="chip-value red">27K</div>
+          <div class="chip-sub">0.3%</div>
+        </div>
+        <div class="stat-card">
+          <div class="chip-label">Enrichable Categories</div>
+          <div class="chip-value amber">6</div>
+          <div class="chip-sub">active segments</div>
+        </div>
+      </div>
+
+      <!-- Donut + Breakdown -->
+      <div class="mid-row">
+
+        <div class="card">
+          <div class="card-title">Traffic Distribution</div>
+          <div class="pie-wrap">
+            <div class="pie"></div>
+            <div class="legend">
+              <div class="legend-item">
+                <div class="legend-dot" style="background:#3b82f6"></div>
+                <span>Deep (C_)</span>
+                <span class="legend-pct">12.0%</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background:var(--green)"></div>
+                <span>Shallow</span>
+                <span class="legend-pct">87.6%</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background:var(--red)"></div>
+                <span>Failed</span>
+                <span class="legend-pct">0.3%</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background:#cbd5e1"></div>
+                <span>Unknown</span>
+                <span class="legend-pct">0.1%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Category Breakdown</div>
+          <div class="cat-list">
+            <div>
+              <div class="cat-header">
+                <span><span class="cat-name">Content ID</span><span class="cat-type">· Deep</span></span>
+                <span class="cat-pct">12.0%</span>
+              </div>
+              <div class="bar-track"><div class="bar-fill" style="width:12%"></div></div>
+            </div>
+            <div>
+              <div class="cat-header">
+                <span><span class="cat-name">Genre · Roku</span><span class="cat-type">· Shallow</span></span>
+                <span class="cat-pct">76.5%</span>
+              </div>
+              <div class="bar-track"><div class="bar-fill" style="width:76.5%"></div></div>
+            </div>
+            <div>
+              <div class="cat-header">
+                <span><span class="cat-name">Channel &amp; Genre</span><span class="cat-type">· Shallow</span></span>
+                <span class="cat-pct">11.1%</span>
+              </div>
+              <div class="bar-track"><div class="bar-fill" style="width:11.1%"></div></div>
+            </div>
+            <div>
+              <div class="cat-header">
+                <span><span class="cat-name">Unmatched</span><span class="cat-type">· Failure</span></span>
+                <span class="cat-pct" style="color:var(--red)">0.3%</span>
+              </div>
+              <div class="bar-track"><div class="bar-fill fail" style="width:0.5%"></div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Unmatched section -->
+      <div class="unmatched-card">
+        <div class="unmatched-header">
+          <div class="unmatched-header-top">
+            <div class="unmatched-title">Unmatched Failures</div>
+            <div class="risk-badge">0.3% — 27K reqs</div>
+            <div style="margin-left:auto">
+              <div class="tabs-segmented">
+                <button class="tab-btn active">Content</button>
+                <button class="tab-btn">URLs</button>
+              </div>
+            </div>
+          </div>
+          <div class="search-box">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input placeholder="Search content ID or bundle ID…">
+          </div>
+        </div>
+        <div class="unmatched-body">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:32px">#</th>
+                <th>Content ID</th>
+                <th>Bundle ID</th>
+                <th>Channel</th>
+                <th class="r sort-active" style="width:100px">Requests ↓</th>
+                <th class="r" style="width:110px">Root Cause</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="dim">1</td><td>RKNEWS_CH001</td><td class="dim">com.roku.news</td><td>News</td><td class="r red">12,400</td><td class="r dim">no-segment</td></tr>
+              <tr><td class="dim">2</td><td>RKSP_CH088</td><td class="dim">com.roku.sport</td><td>Sports</td><td class="r red">9,810</td><td class="r dim">no-segment</td></tr>
+              <tr><td class="dim">3</td><td>RKMOV_007</td><td class="dim">com.roku.movies</td><td>Movies</td><td class="r red">4,780</td><td class="r dim">unmatched</td></tr>
+              <tr><td class="dim">4</td><td>RKLIVE_042</td><td class="dim">com.roku.live</td><td>Live</td><td class="r red">182</td><td class="r dim">no-segment</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="note">
+        Opens in a new tab · Route: <code>/platform/:name?dateFrom=…&dateTo=…</code> · Date inherited from dashboard, overridable above
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>
