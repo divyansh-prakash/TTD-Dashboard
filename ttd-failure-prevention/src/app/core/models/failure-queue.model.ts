@@ -155,6 +155,7 @@ export interface PubmaticPlatformBar {
 
 export interface PubmaticSummary {
   totalHits:             number;
+  totalRows:             number;
   uniqueTotal:           number;
   uniqueMatched:         number;
   uniqueUnmatched:       number;
@@ -166,6 +167,7 @@ export interface PubmaticSummary {
   uniqueContentMatched:    number;
   contentMatchRate:        number;
   servedRequests:          number;
+  servedRows:              number;
   matchedContentTotalReqs: number;
 }
 

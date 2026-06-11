@@ -629,6 +629,7 @@ async function getPubmaticSummarySvc({ dateFrom, dateTo, brandSafe, region, part
 
   const totalHits                    = Number(kpi.total_hits                                           || 0);
   const uniqueTotal                  = Number(kpi.unique_total                                          || 0);
+  const totalRows                    = Number(kpi.total_rows                                            || 0);
   const uniqueMatched                = Number(matched.unique_matched                                    || 0);
   const uniqueUnmatched              = Number(unmatched.unique_unmatched                                || 0);
   const matchRate                    = uniqueTotal > 0 ? (uniqueMatched / uniqueTotal) * 100 : 0;
@@ -638,6 +639,7 @@ async function getPubmaticSummarySvc({ dateFrom, dateTo, brandSafe, region, part
   const uniqueContentMatched         = Number(contentIdsMatched.unique_content_matched                  || 0);
   const contentMatchRate             = uniqueContentIds > 0 ? (uniqueContentMatched / uniqueContentIds) * 100 : 0;
   const servedRequests               = Number(servedHits.served_hits                                   || 0);
+  const servedRows                   = Number(servedHits.served_rows                                   || 0);
   const matchedContentTotalReqs      = Number(matchedContentTotalRequests.matched_content_total_requests || 0);
 
   // Resolve per-appid rows to named platforms; aggregate unknown
@@ -654,7 +656,7 @@ async function getPubmaticSummarySvc({ dateFrom, dateTo, brandSafe, region, part
     ...(unknownAgg > 0 ? [{ platform: 'Unknown', hits: unknownAgg }] : []),
   ];
 
-  return { totalHits, uniqueTotal, uniqueMatched, uniqueUnmatched, matchRate, knownHits, unknownHits, platformBreakdown, uniqueContentIds, uniqueContentMatched, contentMatchRate, servedRequests, matchedContentTotalReqs };
+  return { totalHits, totalRows, uniqueTotal, uniqueMatched, uniqueUnmatched, matchRate, knownHits, unknownHits, platformBreakdown, uniqueContentIds, uniqueContentMatched, contentMatchRate, servedRequests, servedRows, matchedContentTotalReqs };
 }
 
 async function getPubmaticAppidBreakdownSvc({ dateFrom, dateTo, region, partner = 'Pubmatic' }) {

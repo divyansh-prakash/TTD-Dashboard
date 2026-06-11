@@ -169,10 +169,11 @@ async function getPubmaticKpiSummary({ dateFrom, dateTo, region, knownAppIds = [
   const knownIn = knownAppIds.length ? knownAppIds.map(sq).join(',') : "'__NONE__'";
 
   const [kpi, matchedRows, unmatchedRows, split, platformRows, contentIds, contentIdsMatched, servedHitsRows, matchedContentTotalRequests] = await Promise.all([
-    // Total hits + total unique (content_id, appid) pairs
+    // Total hits + total unique (content_id, appid) pairs + raw row count
     query(`
       SELECT SUM(total_count)        AS total_hits,
-             uniq(content_id, appid) AS unique_total
+             uniq(content_id, appid) AS unique_total,
+             COUNT(*)                AS total_rows
       FROM ctv_agg_data WHERE ${where}
     `, db),
 
@@ -218,9 +219,10 @@ async function getPubmaticKpiSummary({ dateFrom, dateTo, region, knownAppIds = [
       WHERE ${where} AND matchedby != '' AND matchedby IS NOT NULL
     `, db),
 
-    // Total served requests (matched hits)
+    // Total served requests (matched hits) + raw served row count
     query(`
-      SELECT SUM(total_count) AS served_hits
+      SELECT SUM(total_count) AS served_hits,
+             COUNT(*)         AS served_rows
       FROM ctv_agg_data
       WHERE ${where} AND matchedby != '' AND matchedby IS NOT NULL
     `, db),
