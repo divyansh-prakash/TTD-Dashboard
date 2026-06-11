@@ -6,14 +6,14 @@
   <div class="kgrid">
 
     <div class="kcard blue">
-      <div class="klbl"><i class="ti ti-radar"></i>Total hits</div>
-      <div class="kval" style="color:#1d4ed8">{{ fmt(data()!.totalHits) }}</div>
+      <div class="klbl"><i class="ti ti-radar"></i>Total requests</div>
+      <div class="kval" style="color:#1d4ed8">{{ fmt(data()!.totalHits) }} <span class="krate" style="color:inherit">{{ fmt(data()!.uniqueTotal) }} total rows</span></div>
       <div class="ksub">all requests</div>
     </div>
 
     <div class="kcard teal">
       <div class="klbl"><i class="ti ti-send"></i>Total served</div>
-      <div class="kval" style="color:#0f766e">{{ fmt(data()!.servedRequests) }}</div>
+      <div class="kval" style="color:#0f766e">{{ fmt(data()!.servedRequests) }} <span class="krate" style="color:inherit">{{ fmt(data()!.uniqueMatched) }} served rows</span></div>
       <div class="ksub">matched requests</div>
     </div>
 
